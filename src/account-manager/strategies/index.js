@@ -7,6 +7,7 @@
 import { StickyStrategy } from './sticky-strategy.js';
 import { RoundRobinStrategy } from './round-robin-strategy.js';
 import { HybridStrategy } from './hybrid-strategy.js';
+import { SessionHybridStrategy } from './session-hybrid-strategy.js';
 import { logger } from '../../utils/logger.js';
 import {
     SELECTION_STRATEGIES,
@@ -41,6 +42,11 @@ export function createStrategy(strategyName, config = {}) {
             logger.debug('[Strategy] Creating HybridStrategy');
             return new HybridStrategy(config);
 
+        case 'session-hybrid':
+        case 'sessionhybrid':
+            logger.debug('[Strategy] Creating SessionHybridStrategy');
+            return new SessionHybridStrategy(config);
+
         default:
             logger.warn(`[Strategy] Unknown strategy "${strategyName}", falling back to ${DEFAULT_STRATEGY}`);
             return new HybridStrategy(config);
@@ -55,7 +61,7 @@ export function createStrategy(strategyName, config = {}) {
 export function isValidStrategy(name) {
     if (!name) return false;
     const lower = name.toLowerCase();
-    return STRATEGY_NAMES.includes(lower) || lower === 'roundrobin';
+    return STRATEGY_NAMES.includes(lower) || lower === 'roundrobin' || lower === 'sessionhybrid';
 }
 
 /**
@@ -66,6 +72,7 @@ export function isValidStrategy(name) {
 export function getStrategyLabel(name) {
     const lower = (name || DEFAULT_STRATEGY).toLowerCase();
     if (lower === 'roundrobin') return STRATEGY_LABELS['round-robin'];
+    if (lower === 'sessionhybrid') return STRATEGY_LABELS['session-hybrid'];
     return STRATEGY_LABELS[lower] || STRATEGY_LABELS[DEFAULT_STRATEGY];
 }
 
@@ -73,6 +80,7 @@ export function getStrategyLabel(name) {
 export { StickyStrategy } from './sticky-strategy.js';
 export { RoundRobinStrategy } from './round-robin-strategy.js';
 export { HybridStrategy } from './hybrid-strategy.js';
+export { SessionHybridStrategy } from './session-hybrid-strategy.js';
 export { BaseStrategy } from './base-strategy.js';
 
 // Re-export trackers

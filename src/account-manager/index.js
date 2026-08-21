@@ -189,7 +189,11 @@ export class AccountManager {
         });
 
         this.#currentIndex = result.index;
-        return { account: result.account, waitMs: result.waitMs || 0 };
+        return {
+            account: result.account,
+            waitMs: result.waitMs || 0,
+            leaseId: result.leaseId
+        };
     }
 
     /**
@@ -226,6 +230,16 @@ export class AccountManager {
     notifyFailure(account, modelId) {
         if (this.#strategy) {
             this.#strategy.onFailure(account, modelId);
+        }
+    }
+
+    /**
+     * Release request-scoped accounting created by account selection.
+     * Safe to call from finally blocks for every strategy.
+     */
+    notifyRequestComplete(account, modelId, options = {}) {
+        if (this.#strategy) {
+            this.#strategy.onRequestComplete(account, modelId, options);
         }
     }
 
@@ -268,7 +282,7 @@ export class AccountManager {
     /**
      * Get the health tracker from the current strategy (if available)
      * Used by handlers for consecutive failure tracking
-     * Only available when using hybrid strategy
+     * Available for hybrid and session-hybrid strategies.
      * @returns {Object|null} Health tracker instance or null if not available
      */
     getHealthTracker() {
@@ -473,13 +487,13 @@ export class AccountManager {
 
     /**
      * Get strategy health data for the health inspector panel.
-     * Only returns tracker data when using the hybrid strategy.
+     * Returns tracker data for hybrid strategies.
      * @returns {Object} Strategy health data
      */
     getStrategyHealthData() {
         const strategyName = this.#strategyName;
 
-        // Only hybrid strategy has trackers
+        // Hybrid strategies expose trackers.
         if (!this.#strategy || typeof this.#strategy.getHealthTracker !== 'function') {
             return { strategy: strategyName, trackers: null };
         }

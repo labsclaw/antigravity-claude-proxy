@@ -7,13 +7,35 @@
  */
 
 import crypto from 'crypto';
+import { deriveAffinityKey } from './affinity-key.js';
+import { config as runtimeConfig } from '../config.js';
 
 
-// Runtime storage for session IDs (per account)
-// This mimics the behavior of the binary which generates a session ID at startup
-// and keeps it for the process lifetime.
-// Key: accountEmail, Value: sessionId
+// Runtime storage for session IDs per conversation and account. This preserves
+// upstream cache continuity without leaking one account-wide ID across unrelated
+// clients or conversations.
 const runtimeSessionStore = new Map();
+const DEFAULT_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_MAX_SESSION_ENTRIES = 10000;
+
+function boundedNumber(value, fallback, min, max) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) return fallback;
+    return value;
+}
+
+function getStoreSettings() {
+    const settings = runtimeConfig.accountSelection?.sessionHybrid || {};
+    return {
+        ttlMs: boundedNumber(settings.sessionStoreTtlMs, DEFAULT_SESSION_TTL_MS, 1, 365 * 24 * 60 * 60 * 1000),
+        maxEntries: Math.trunc(boundedNumber(settings.maxSessionEntries, DEFAULT_MAX_SESSION_ENTRIES, 1, 1000000))
+    };
+}
+
+function pruneSessionStore(now, ttlMs) {
+    for (const [key, entry] of runtimeSessionStore) {
+        if (now - entry.updatedAt > ttlMs) runtimeSessionStore.delete(key);
+    }
+}
 
 /**
  * Get or create a session ID for the given account.
@@ -30,22 +52,33 @@ const runtimeSessionStore = new Map();
  * @param {string} accountEmail - The account email to scope the session ID
  * @returns {string} A stable session ID string matching binary format
  */
-export function deriveSessionId(anthropicRequest, accountEmail) {
+export function deriveSessionId(anthropicRequest, accountEmail, affinityKey = null) {
     if (!accountEmail) {
         // Fallback for requests without an account (should differ every time)
         return generateBinaryStyleId();
     }
 
-    // Check if we already have a session ID for this account in this process run
-    if (runtimeSessionStore.has(accountEmail)) {
-        return runtimeSessionStore.get(accountEmail);
+    const conversationKey = deriveAffinityKey(anthropicRequest, affinityKey);
+    const modelId = typeof anthropicRequest?.model === 'string' && anthropicRequest.model ? anthropicRequest.model : 'default';
+    const storeKey = JSON.stringify([accountEmail, conversationKey, modelId]);
+    const now = Date.now();
+    const { ttlMs, maxEntries } = getStoreSettings();
+    pruneSessionStore(now, ttlMs);
+
+    if (runtimeSessionStore.has(storeKey)) {
+        const entry = runtimeSessionStore.get(storeKey);
+        entry.updatedAt = now;
+        runtimeSessionStore.delete(storeKey);
+        runtimeSessionStore.set(storeKey, entry);
+        return entry.sessionId;
     }
 
     // Generate a new ID using the binary's exact logic
     const newSessionId = generateBinaryStyleId();
 
     // Store it for future requests from this account
-    runtimeSessionStore.set(accountEmail, newSessionId);
+    while (runtimeSessionStore.size >= maxEntries) runtimeSessionStore.delete(runtimeSessionStore.keys().next().value);
+    runtimeSessionStore.set(storeKey, { sessionId: newSessionId, updatedAt: now });
 
     return newSessionId;
 }

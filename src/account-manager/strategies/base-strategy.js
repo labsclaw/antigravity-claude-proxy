@@ -33,6 +33,7 @@ export class BaseStrategy {
      * @param {Object} options - Additional options
      * @param {number} options.currentIndex - Current account index
      * @param {string} [options.sessionId] - Session ID for cache continuity
+     * @param {boolean} [options.reserveCapacity=true] - Reserve token, in-flight, and affinity state
      * @param {Function} [options.onSave] - Callback to save changes
      * @returns {SelectionResult} The selected account and index
      */
@@ -64,6 +65,11 @@ export class BaseStrategy {
      * @param {string} modelId - The model ID that failed
      */
     onFailure(account, modelId) {
+        // Default: no-op, override in subclass if needed
+    }
+
+    /** Release any request-scoped selection bookkeeping. */
+    onRequestComplete(account, modelId, options = {}) {
         // Default: no-op, override in subclass if needed
     }
 

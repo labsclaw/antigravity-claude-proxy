@@ -186,7 +186,7 @@ function validateConfigFields(input) {
     }
     // Account selection strategy and tuning validation
     if (accountSelection && typeof accountSelection === 'object') {
-        const validStrategies = ['sticky', 'round-robin', 'hybrid'];
+        const validStrategies = ['sticky', 'round-robin', 'hybrid', 'session-hybrid'];
         const acctUpdate = {};
 
         if (accountSelection.strategy && validStrategies.includes(accountSelection.strategy)) {
@@ -236,6 +236,19 @@ function validateConfigFields(input) {
             if (typeof w.quota === 'number' && w.quota >= 0 && w.quota <= 20) wUpdate.quota = w.quota;
             if (typeof w.lru === 'number' && w.lru >= 0 && w.lru <= 5) wUpdate.lru = w.lru;
             if (Object.keys(wUpdate).length > 0) acctUpdate.weights = wUpdate;
+        }
+
+        if (accountSelection.sessionHybrid && typeof accountSelection.sessionHybrid === 'object') {
+            const sh = accountSelection.sessionHybrid;
+            const shUpdate = {};
+            if (typeof sh.emergencyQuotaBypass === 'boolean') shUpdate.emergencyQuotaBypass = sh.emergencyQuotaBypass;
+            if (typeof sh.concurrencyPenalty === 'number' && Number.isFinite(sh.concurrencyPenalty) && sh.concurrencyPenalty >= 0 && sh.concurrencyPenalty <= 10) shUpdate.concurrencyPenalty = sh.concurrencyPenalty;
+            if (typeof sh.assignmentTtlMs === 'number' && Number.isFinite(sh.assignmentTtlMs) && sh.assignmentTtlMs >= 60000 && sh.assignmentTtlMs <= 31536000000) shUpdate.assignmentTtlMs = sh.assignmentTtlMs;
+            if (typeof sh.leaseTtlMs === 'number' && Number.isFinite(sh.leaseTtlMs) && sh.leaseTtlMs >= 60000 && sh.leaseTtlMs <= 86400000) shUpdate.leaseTtlMs = sh.leaseTtlMs;
+            if (Number.isInteger(sh.maxAssignments) && sh.maxAssignments >= 100 && sh.maxAssignments <= 1000000) shUpdate.maxAssignments = sh.maxAssignments;
+            if (typeof sh.sessionStoreTtlMs === 'number' && Number.isFinite(sh.sessionStoreTtlMs) && sh.sessionStoreTtlMs >= 60000 && sh.sessionStoreTtlMs <= 31536000000) shUpdate.sessionStoreTtlMs = sh.sessionStoreTtlMs;
+            if (Number.isInteger(sh.maxSessionEntries) && sh.maxSessionEntries >= 100 && sh.maxSessionEntries <= 1000000) shUpdate.maxSessionEntries = sh.maxSessionEntries;
+            if (Object.keys(shUpdate).length > 0) acctUpdate.sessionHybrid = shUpdate;
         }
 
         if (Object.keys(acctUpdate).length > 0) {

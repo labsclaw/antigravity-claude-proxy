@@ -14,6 +14,7 @@ npm run dev:full     # watch CSS + server files
 
 npm start -- --strategy=sticky       # cache-optimized (default is hybrid)
 npm start -- --strategy=round-robin  # load-balanced
+npm start -- --strategy=session-hybrid # conversation affinity + smart failover
 npm start -- --fallback              # fall back to alternate model on quota exhaustion
 npm start -- --dev-mode              # enables debug logging + dev tools (--debug is a legacy alias)
 

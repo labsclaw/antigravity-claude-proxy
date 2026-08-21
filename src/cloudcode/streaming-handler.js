@@ -35,6 +35,7 @@ import {
     isAccountBanned,
     calculateSmartBackoff
 } from './rate-limit-state.js';
+import { deriveAffinityKey } from './affinity-key.js';
 import crypto from 'crypto';
 
 /**
@@ -52,6 +53,8 @@ import crypto from 'crypto';
  */
 export async function* sendMessageStream(anthropicRequest, accountManager, fallbackEnabled = false) {
     const model = anthropicRequest.model;
+    const affinityKey = anthropicRequest.affinityKey
+        || deriveAffinityKey(anthropicRequest);
 
     // Retry loop with account failover
     // Ensure we try at least as many times as there are accounts to cycle through everyone
@@ -114,7 +117,9 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
         }
 
         // Select account using configured strategy
-        const { account, waitMs } = accountManager.selectAccount(model);
+        const { account, waitMs, leaseId } = accountManager.selectAccount(model, {
+            sessionId: affinityKey
+        });
 
         // If strategy returns a wait time without an account, sleep and retry
         if (!account && waitMs > 0) {
@@ -140,7 +145,7 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
             // Get token and project for this account
             const token = await accountManager.getTokenForAccount(account);
             const project = await accountManager.getProjectForAccount(account, token);
-            const payload = buildCloudCodeRequest(anthropicRequest, project, account.email);
+            const payload = buildCloudCodeRequest(anthropicRequest, project, account.email, affinityKey);
 
             logger.debug(`[CloudCode] Starting stream for model: ${model}`);
 
@@ -484,6 +489,8 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
             }
 
             throw error;
+        } finally {
+            accountManager.notifyRequestComplete(account, model, { leaseId });
         }
     }
 

@@ -22,12 +22,12 @@ import { deriveSessionId } from './session-manager.js';
  * @param {string} accountEmail - The account email for session ID derivation
  * @returns {Object} The Cloud Code API request payload
  */
-export function buildCloudCodeRequest(anthropicRequest, projectId, accountEmail) {
+export function buildCloudCodeRequest(anthropicRequest, projectId, accountEmail, affinityKey = null) {
     const model = anthropicRequest.model;
     const googleRequest = convertAnthropicToGoogle(anthropicRequest);
 
     // Use stable session ID derived from first user message for cache continuity
-    googleRequest.sessionId = deriveSessionId(anthropicRequest, accountEmail);
+    googleRequest.sessionId = deriveSessionId(anthropicRequest, accountEmail, affinityKey);
 
     // Build system instruction parts array with [ignore] tags to prevent model from
     // identifying as "Antigravity" (fixes GitHub issue #76)

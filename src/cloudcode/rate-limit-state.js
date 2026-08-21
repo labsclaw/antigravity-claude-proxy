@@ -198,7 +198,7 @@ export function calculateSmartBackoff(errorText, serverResetMs, consecutiveFailu
 }
 
 // Periodically clean up stale rate limit state (every 60 seconds)
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
     const cutoff = Date.now() - RATE_LIMIT_STATE_RESET_MS;
     for (const [key, state] of rateLimitStateByAccountModel.entries()) {
         if (state.lastAt < cutoff) {
@@ -206,3 +206,5 @@ setInterval(() => {
         }
     }
 }, 60000);
+// This maintenance timer must not keep short-lived CLI commands or tests alive.
+cleanupTimer.unref?.();
