@@ -162,7 +162,7 @@ export async function updateServerPreset(currentName, updates) {
                     const existingAS = existing.accountSelection || {};
                     existing.accountSelection = { ...existingAS };
                     if (updateAS.strategy !== undefined) existing.accountSelection.strategy = updateAS.strategy;
-                    for (const subKey of ['healthScore', 'tokenBucket', 'quota', 'weights']) {
+                    for (const subKey of ['healthScore', 'tokenBucket', 'quota', 'weights', 'sessionHybrid']) {
                         if (updateAS[subKey] && typeof updateAS[subKey] === 'object') {
                             existing.accountSelection[subKey] = { ...existingAS[subKey], ...updateAS[subKey] };
                         }

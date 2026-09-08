@@ -388,7 +388,7 @@ window.Components.serverConfig = () => ({
     // Toggle Account Selection Strategy
     async toggleStrategy(strategy) {
         const store = Alpine.store('global');
-        const validStrategies = ['sticky', 'round-robin', 'hybrid'];
+        const validStrategies = ['sticky', 'round-robin', 'hybrid', 'session-hybrid'];
 
         if (!validStrategies.includes(strategy)) {
             store.showToast(store.t('invalidStrategy'), 'error');
@@ -435,7 +435,8 @@ window.Components.serverConfig = () => ({
         const labels = {
             'sticky': store.t('strategyStickyLabel'),
             'round-robin': store.t('strategyRoundRobinLabel'),
-            'hybrid': store.t('strategyHybridLabel')
+            'hybrid': store.t('strategyHybridLabel'),
+            'session-hybrid': store.t('strategySessionHybridLabel')
         };
         return labels[strategy] || strategy;
     },
@@ -447,7 +448,8 @@ window.Components.serverConfig = () => ({
         const descriptions = {
             'sticky': store.t('strategyStickyDesc'),
             'round-robin': store.t('strategyRoundRobinDesc'),
-            'hybrid': store.t('strategyHybridDesc')
+            'hybrid': store.t('strategyHybridDesc'),
+            'session-hybrid': store.t('strategySessionHybridDesc')
         };
         return descriptions[strategy] || '';
     },
@@ -776,8 +778,8 @@ window.Components.serverConfig = () => ({
             }
         ];
 
-        // Add hybrid-only sections when strategy is hybrid
-        if (strategy === 'hybrid') {
+        // Both hybrid strategies share health/token/quota tuning.
+        if (strategy === 'hybrid' || strategy === 'session-hybrid') {
             const as = cfg.accountSelection || {};
             const curAs = cur.accountSelection || {};
 
@@ -837,6 +839,23 @@ window.Components.serverConfig = () => ({
                     { label: store.t('qStaleMs') || 'Stale Data Timeout', value: this.formatMsValue(q.staleMs), differs: differs(q.staleMs, curQ.staleMs), key: 'q_staleMs', min: V.Q_STALE_MS_MIN, max: V.Q_STALE_MS_MAX, step: 1000, suffix: 'ms' },
                 ]
             });
+
+            if (strategy === 'session-hybrid') {
+                const sh = as.sessionHybrid || {};
+                const curSh = curAs.sessionHybrid || {};
+                sections.push({
+                    label: 'Session Hybrid',
+                    hybridOnly: true,
+                    rows: [
+                        { label: 'Concurrency Penalty', value: sh.concurrencyPenalty ?? '—', differs: differs(sh.concurrencyPenalty, curSh.concurrencyPenalty), key: 'sh_concurrencyPenalty', min: V.SH_CONCURRENCY_PENALTY_MIN, max: V.SH_CONCURRENCY_PENALTY_MAX, step: 0.05 },
+                        { label: 'Assignment TTL', value: this.formatMsValue(sh.assignmentTtlMs), differs: differs(sh.assignmentTtlMs, curSh.assignmentTtlMs), key: 'sh_assignmentTtlMs', min: V.SH_TTL_MS_MIN, max: V.SH_ASSIGNMENT_TTL_MS_MAX, step: 60000, suffix: 'ms' },
+                        { label: 'Lease TTL', value: this.formatMsValue(sh.leaseTtlMs), differs: differs(sh.leaseTtlMs, curSh.leaseTtlMs), key: 'sh_leaseTtlMs', min: V.SH_TTL_MS_MIN, max: V.SH_LEASE_TTL_MS_MAX, step: 60000, suffix: 'ms' },
+                        { label: 'Max Assignments', value: sh.maxAssignments ?? '—', differs: differs(sh.maxAssignments, curSh.maxAssignments), key: 'sh_maxAssignments', min: V.SH_MAX_ENTRIES_MIN, max: V.SH_MAX_ENTRIES_MAX, step: 1 },
+                        { label: 'Session Store TTL', value: this.formatMsValue(sh.sessionStoreTtlMs), differs: differs(sh.sessionStoreTtlMs, curSh.sessionStoreTtlMs), key: 'sh_sessionStoreTtlMs', min: V.SH_TTL_MS_MIN, max: V.SH_ASSIGNMENT_TTL_MS_MAX, step: 60000, suffix: 'ms' },
+                        { label: 'Max Session Entries', value: sh.maxSessionEntries ?? '—', differs: differs(sh.maxSessionEntries, curSh.maxSessionEntries), key: 'sh_maxSessionEntries', min: V.SH_MAX_ENTRIES_MIN, max: V.SH_MAX_ENTRIES_MAX, step: 1 },
+                    ]
+                });
+            }
         }
 
         return {
@@ -861,6 +880,7 @@ window.Components.serverConfig = () => ({
         const tb = as.tokenBucket || {};
         const q = as.quota || {};
         const w = as.weights || {};
+        const sh = as.sessionHybrid || {};
         return {
             maxRetries: cfg.maxRetries,
             retryBaseMs: cfg.retryBaseMs,
@@ -897,6 +917,14 @@ window.Components.serverConfig = () => ({
             w_tokens: w.tokens,
             w_quota: w.quota,
             w_lru: w.lru,
+            // Session Hybrid
+            sh_emergencyQuotaBypass: sh.emergencyQuotaBypass,
+            sh_concurrencyPenalty: sh.concurrencyPenalty,
+            sh_assignmentTtlMs: sh.assignmentTtlMs,
+            sh_leaseTtlMs: sh.leaseTtlMs,
+            sh_maxAssignments: sh.maxAssignments,
+            sh_sessionStoreTtlMs: sh.sessionStoreTtlMs,
+            sh_maxSessionEntries: sh.maxSessionEntries,
         };
     },
 
@@ -955,11 +983,20 @@ window.Components.serverConfig = () => ({
                 tokens: draft.w_tokens,
                 quota: draft.w_quota,
                 lru: draft.w_lru,
+            },
+            sessionHybrid: {
+                emergencyQuotaBypass: draft.sh_emergencyQuotaBypass,
+                concurrencyPenalty: draft.sh_concurrencyPenalty,
+                assignmentTtlMs: draft.sh_assignmentTtlMs,
+                leaseTtlMs: draft.sh_leaseTtlMs,
+                maxAssignments: draft.sh_maxAssignments,
+                sessionStoreTtlMs: draft.sh_sessionStoreTtlMs,
+                maxSessionEntries: draft.sh_maxSessionEntries,
             }
         };
 
         // Clean undefined values from nested objects
-        for (const subKey of ['healthScore', 'tokenBucket', 'quota', 'weights']) {
+        for (const subKey of ['healthScore', 'tokenBucket', 'quota', 'weights', 'sessionHybrid']) {
             const obj = cfg.accountSelection[subKey];
             const cleaned = {};
             let hasValues = false;
@@ -1121,6 +1158,13 @@ window.Components.serverConfig = () => ({
             w_tokens: [V.W_TOKENS_MIN, V.W_TOKENS_MAX],
             w_quota: [V.W_QUOTA_MIN, V.W_QUOTA_MAX],
             w_lru: [V.W_LRU_MIN, V.W_LRU_MAX],
+            // Session Hybrid
+            sh_concurrencyPenalty: [V.SH_CONCURRENCY_PENALTY_MIN, V.SH_CONCURRENCY_PENALTY_MAX],
+            sh_assignmentTtlMs: [V.SH_TTL_MS_MIN, V.SH_ASSIGNMENT_TTL_MS_MAX],
+            sh_leaseTtlMs: [V.SH_TTL_MS_MIN, V.SH_LEASE_TTL_MS_MAX],
+            sh_maxAssignments: [V.SH_MAX_ENTRIES_MIN, V.SH_MAX_ENTRIES_MAX],
+            sh_sessionStoreTtlMs: [V.SH_TTL_MS_MIN, V.SH_ASSIGNMENT_TTL_MS_MAX],
+            sh_maxSessionEntries: [V.SH_MAX_ENTRIES_MIN, V.SH_MAX_ENTRIES_MAX],
         };
         const range = ranges[key];
         if (!range) return;

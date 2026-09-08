@@ -34,7 +34,9 @@ export class QuotaTracker {
     getQuotaFraction(account, modelId) {
         if (!account?.quota?.models?.[modelId]) return null;
         const fraction = account.quota.models[modelId].remainingFraction;
-        return typeof fraction === 'number' ? fraction : null;
+        return typeof fraction === 'number' && Number.isFinite(fraction)
+            ? Math.min(1, Math.max(0, fraction))
+            : null;
     }
 
     /**
@@ -58,9 +60,10 @@ export class QuotaTracker {
         const fraction = this.getQuotaFraction(account, modelId);
         // Unknown quota = not critical (assume OK)
         if (fraction === null) return false;
-        // Only apply critical check if data is fresh
+        // Only apply the shared tracker critical check if data is fresh.
+        // Session Hybrid enforces its stricter stale hard floor locally.
         if (!this.isQuotaFresh(account)) return false;
-        const threshold = (typeof thresholdOverride === 'number' && thresholdOverride > 0)
+        const threshold = (typeof thresholdOverride === 'number' && Number.isFinite(thresholdOverride) && thresholdOverride > 0)
             ? thresholdOverride
             : this.#config.criticalThreshold;
         return fraction <= threshold;

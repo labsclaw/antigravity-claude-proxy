@@ -55,7 +55,7 @@ const DEFAULT_CONFIG = {
     modelMapping: {},
     // Account selection strategy configuration
     accountSelection: {
-        strategy: 'hybrid',           // 'sticky' | 'round-robin' | 'hybrid'
+        strategy: 'hybrid',           // 'sticky' | 'round-robin' | 'hybrid' | 'session-hybrid'
         // Hybrid strategy tuning (optional - sensible defaults)
         healthScore: {
             initial: 70,              // Starting score for new accounts
@@ -81,6 +81,15 @@ const DEFAULT_CONFIG = {
             tokens: 5,                // Weight for token bucket component
             quota: 3,                 // Weight for quota awareness component
             lru: 0.1                  // Weight for LRU freshness component
+        },
+        sessionHybrid: {
+            emergencyQuotaBypass: false, // Explicit opt-in; hard quota floor is the default
+            concurrencyPenalty: 0.35,
+            assignmentTtlMs: 86400000,
+            leaseTtlMs: 600000,
+            maxAssignments: 10000,
+            sessionStoreTtlMs: 86400000,
+            maxSessionEntries: 10000
         }
     }
 };

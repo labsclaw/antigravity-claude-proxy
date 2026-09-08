@@ -35,6 +35,7 @@ import { clearThinkingSignatureCache } from './format/signature-cache.js';
 import { formatDuration } from './utils/helpers.js';
 import { logger } from './utils/logger.js';
 import usageStats from './modules/usage-stats.js';
+import { deriveAffinityKey, getAffinityClientScope, getExplicitAffinityHeader } from './cloudcode/affinity-key.js';
 
 // Parse fallback flag directly from command line args to avoid circular dependency
 const args = process.argv.slice(2);
@@ -761,8 +762,15 @@ app.post('/v1/messages', async (req, res) => {
             thinking,
             top_p,
             top_k,
-            temperature
+            temperature,
+            metadata
         } = req.body;
+
+        const affinityKey = deriveAffinityKey(
+            req.body,
+            getExplicitAffinityHeader(req.headers),
+            getAffinityClientScope(req.headers)
+        );
 
         // Resolve model mapping if configured
         let requestedModel = model || 'claude-3-5-sonnet-20241022';
@@ -778,7 +786,11 @@ app.post('/v1/messages', async (req, res) => {
 
         // Grok models are provided by the local CLI bridge, not Cloud Code.
         if (!isGrokModel) {
-            const { account: validationAccount } = accountManager.selectAccount();
+            const { account: validationAccount } = accountManager.selectAccount(modelId, {
+                sessionId: affinityKey,
+                trackInFlight: false,
+                reserveCapacity: false
+            });
             if (validationAccount) {
                 const token = await accountManager.getTokenForAccount(validationAccount);
                 const projectId = validationAccount.subscription?.projectId || null;
@@ -825,7 +837,9 @@ app.post('/v1/messages', async (req, res) => {
             thinking,
             top_p,
             top_k,
-            temperature
+            temperature,
+            metadata,
+            affinityKey
         };
 
         logger.info(`[API] Request for model: ${request.model}, stream: ${!!stream}`);

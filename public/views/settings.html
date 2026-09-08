@@ -1225,6 +1225,7 @@
                                             <option value="sticky" x-text="$store.global.t('strategyStickyLabel') || 'Sticky'"></option>
                                             <option value="round-robin" x-text="$store.global.t('strategyRoundRobinLabel') || 'Round Robin'"></option>
                                             <option value="hybrid" x-text="$store.global.t('strategyHybridLabel') || 'Hybrid'"></option>
+                                            <option value="session-hybrid" x-text="$store.global.t('strategySessionHybridLabel') || 'Session Hybrid'"></option>
                                         </select>
                                     </div>
                                     <!-- Sections -->
@@ -1549,6 +1550,8 @@
                                 @change="toggleStrategy($el.value)" aria-label="Account selection strategy">
                                 <option value="hybrid" x-text="$store.global.t('strategyHybridLabel')">Hybrid (Smart
                                     Distribution)</option>
+                                <option value="session-hybrid" x-text="$store.global.t('strategySessionHybridLabel')">Session Hybrid
+                                    (Conversation Affinity)</option>
                                 <option value="sticky" x-text="$store.global.t('strategyStickyLabel')">Sticky (Cache
                                     Optimized)</option>
                                 <option value="round-robin" x-text="$store.global.t('strategyRoundRobinLabel')">Round

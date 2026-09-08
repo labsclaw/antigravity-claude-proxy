@@ -392,7 +392,7 @@ USAGE
   --version, -v      Show version
   --log              Run in foreground with visible logs
   --strategy=NAME    Load balancing: hybrid (default),
-                     sticky (cache-optimized), round-robin
+                     sticky, round-robin, session-hybrid
   --fallback         Enable model fallback on errors
 
 ━━━ ENVIRONMENT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -404,6 +404,7 @@ USAGE
   acc ui                       Open dashboard
   PORT=3000 acc start          Use custom port
   acc start --strategy=sticky  Optimize for prompt caching
+  acc start --strategy=session-hybrid  Conversation affinity + smart failover
   acc accounts add             Link new Google account
 
 ━━━ CLAUDE CODE SETUP ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

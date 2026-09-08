@@ -7,6 +7,7 @@
  * - StickyStrategy: cache-optimized sticky selection
  * - RoundRobinStrategy: load-balanced rotation
  * - HybridStrategy: smart multi-signal distribution
+ * - SessionHybridStrategy: conversation affinity with low-churn failover
  * - Strategy Factory: createStrategy, isValidStrategy, getStrategyLabel
  */
 
@@ -23,6 +24,7 @@ async function runTests() {
     const { StickyStrategy } = await import('../src/account-manager/strategies/sticky-strategy.js');
     const { RoundRobinStrategy } = await import('../src/account-manager/strategies/round-robin-strategy.js');
     const { HybridStrategy } = await import('../src/account-manager/strategies/hybrid-strategy.js');
+    const { SessionHybridStrategy } = await import('../src/account-manager/strategies/session-hybrid-strategy.js');
     const { BaseStrategy } = await import('../src/account-manager/strategies/base-strategy.js');
     const {
         createStrategy,
@@ -926,6 +928,11 @@ async function runTests() {
         assertTrue(strategy instanceof HybridStrategy, 'Should create HybridStrategy');
     });
 
+    test('createStrategy: creates SessionHybridStrategy for "session-hybrid"', () => {
+        const strategy = createStrategy('session-hybrid');
+        assertTrue(strategy instanceof SessionHybridStrategy, 'Should create SessionHybridStrategy');
+    });
+
     test('createStrategy: falls back to HybridStrategy for unknown strategy', () => {
         const strategy = createStrategy('unknown');
         assertTrue(strategy instanceof HybridStrategy, 'Should fall back to HybridStrategy');
@@ -949,6 +956,8 @@ async function runTests() {
         assertTrue(isValidStrategy('sticky'));
         assertTrue(isValidStrategy('round-robin'));
         assertTrue(isValidStrategy('hybrid'));
+        assertTrue(isValidStrategy('session-hybrid'));
+        assertTrue(isValidStrategy('sessionhybrid'));
         assertTrue(isValidStrategy('roundrobin'));
     });
 
@@ -964,6 +973,7 @@ async function runTests() {
         assertEqual(getStrategyLabel('round-robin'), 'Round Robin (Load Balanced)');
         assertEqual(getStrategyLabel('roundrobin'), 'Round Robin (Load Balanced)');
         assertEqual(getStrategyLabel('hybrid'), 'Hybrid (Smart Distribution)');
+        assertEqual(getStrategyLabel('session-hybrid'), 'Session Hybrid (Conversation Affinity)');
     });
 
     test('getStrategyLabel: returns default label for unknown', () => {
@@ -972,7 +982,7 @@ async function runTests() {
     });
 
     test('STRATEGY_NAMES contains all valid strategies', () => {
-        assertDeepEqual(STRATEGY_NAMES, ['sticky', 'round-robin', 'hybrid']);
+        assertDeepEqual(STRATEGY_NAMES, ['sticky', 'round-robin', 'hybrid', 'session-hybrid']);
     });
 
     test('DEFAULT_STRATEGY is hybrid', () => {
