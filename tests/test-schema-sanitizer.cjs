@@ -253,6 +253,152 @@ async function runTests() {
         assertEqual(result.properties.todoList.items.properties.title.type, 'STRING');
         assertEqual(result.properties.todoList.items.properties.status.type, 'STRING');
     });
+    // Structural invariant: every schema node produced by cleanSchema must be
+    // valid for Google's protobuf-based Schema format
+    function assertGoogleSchemaValid(node, path = '$') {
+        if (!node || typeof node !== 'object') return;
+        if (node.type === 'ARRAY' && (!node.items || typeof node.items !== 'object' || Array.isArray(node.items))) {
+            throw new Error(path + ': ARRAY without a single object items (got ' + JSON.stringify(node.items) + ')');
+        }
+        if (node.type && !['STRING', 'NUMBER', 'INTEGER', 'BOOLEAN', 'ARRAY', 'OBJECT'].includes(node.type)) {
+            throw new Error(path + ': non-Google type ' + node.type);
+        }
+        if (node.type !== 'OBJECT' && (node.properties || node.required)) {
+            throw new Error(path + ': non-OBJECT node carries properties/required');
+        }
+        if (node.enum) {
+            if (node.type !== 'STRING') {
+                throw new Error(path + ': non-STRING node carries enum (got type ' + node.type + ')');
+            }
+            for (let i = 0; i < node.enum.length; i++) {
+                if (typeof node.enum[i] !== 'string') {
+                    throw new Error(path + ': enum[' + i + '] is not string (got ' + (typeof node.enum[i]) + ': ' + node.enum[i] + ')');
+                }
+            }
+        }
+        if (node.items) assertGoogleSchemaValid(node.items, path + '.items');
+        for (const [k, v] of Object.entries(node.properties || {})) {
+            assertGoogleSchemaValid(v, path + '.properties[' + k + ']');
+        }
+    }
+
+    // Test 11: Array missing items gets a fallback (issue #368)
+    test('Bare array type without items gets a fallback items schema', () => {
+        const schema = { type: 'array' };
+        const result = cleanSchema(sanitizeSchema(schema));
+
+        assertEqual(result.type, 'ARRAY', 'Type should be ARRAY');
+        assertEqual(result.items.type, 'STRING', 'Missing items should fall back to STRING');
+        assertGoogleSchemaValid(result);
+    });
+
+    // Test 12: Nested array-of-array where innermost items is omitted (issue #368)
+    test('Nested array-of-array with missing innermost items (issue #368)', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                query: {
+                    type: 'object',
+                    properties: {
+                        where: {
+                            type: 'array',
+                            items: { type: 'array' }
+                        }
+                    }
+                }
+            }
+        };
+        const result = cleanSchema(sanitizeSchema(schema));
+
+        const where = result.properties.query.properties.where;
+        assertEqual(where.type, 'ARRAY', 'where should be ARRAY');
+        assertEqual(where.items.type, 'ARRAY', 'where.items should be ARRAY');
+        assertEqual(where.items.items.type, 'STRING', 'where.items.items should fall back to STRING');
+        assertGoogleSchemaValid(result);
+    });
+
+    // Test 13: Boolean const/enum in tool parameters (OpenCode / Claude Code 400 fix)
+    test('Boolean const: true strips enum and adds hint to description', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                isMultiSelect: {
+                    type: 'boolean',
+                    const: true,
+                    description: 'Allow multiple selection'
+                }
+            },
+            required: ['isMultiSelect']
+        };
+        const result = cleanSchema(sanitizeSchema(schema));
+        const prop = result.properties.isMultiSelect;
+
+        assertEqual(prop.type, 'BOOLEAN', 'Type should be BOOLEAN');
+        assertEqual(prop.enum, undefined, 'Boolean should NOT carry enum in Google schema');
+        assertEqual(prop.description.includes('Allowed: true'), true, 'Description should carry allowed value hint');
+        assertGoogleSchemaValid(result);
+    });
+
+    // Test 14: Untyped const: true infers BOOLEAN and strips enum
+    test('Untyped const: true infers BOOLEAN and strips enum', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                flag: {
+                    const: true
+                }
+            }
+        };
+        const result = cleanSchema(sanitizeSchema(schema));
+        const prop = result.properties.flag;
+
+        assertEqual(prop.type, 'BOOLEAN', 'Inferred type should be BOOLEAN');
+        assertEqual(prop.enum, undefined, 'Enum should be stripped for BOOLEAN');
+        assertGoogleSchemaValid(result);
+    });
+
+    // Test 15: Integer enum strips enum and preserves hints
+    test('Integer enum strips enum and preserves hints', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                level: {
+                    type: 'integer',
+                    enum: [1, 2, 3]
+                }
+            }
+        };
+        const result = cleanSchema(sanitizeSchema(schema));
+        const prop = result.properties.level;
+
+        assertEqual(prop.type, 'INTEGER', 'Type should be INTEGER');
+        assertEqual(prop.enum, undefined, 'Integer should not carry enum');
+        assertEqual(prop.description.includes('Allowed: 1, 2, 3'), true, 'Hint preserved');
+        assertGoogleSchemaValid(result);
+    });
+
+    // Test 16: String enum converts non-string entries to strings
+    test('String enum converts non-string entries to strings', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                choice: {
+                    type: 'string',
+                    enum: ['alpha', 123, true]
+                }
+            }
+        };
+        const result = cleanSchema(sanitizeSchema(schema));
+        const prop = result.properties.choice;
+
+        assertEqual(prop.type, 'STRING', 'Type should be STRING');
+        assertEqual(Array.isArray(prop.enum), true, 'Enum should be array');
+        assertEqual(prop.enum.every(e => typeof e === 'string'), true, 'All enum elements must be strings');
+        assertEqual(prop.enum[0], 'alpha');
+        assertEqual(prop.enum[1], '123');
+        assertEqual(prop.enum[2], 'true');
+        assertGoogleSchemaValid(result);
+    });
 
     // Summary
     console.log('\n' + '═'.repeat(60));

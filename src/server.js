@@ -36,6 +36,11 @@ import { formatDuration } from './utils/helpers.js';
 import { logger } from './utils/logger.js';
 import usageStats from './modules/usage-stats.js';
 import { deriveAffinityKey, getAffinityClientScope, getExplicitAffinityHeader } from './cloudcode/affinity-key.js';
+import {
+    openAIToAnthropicRequest,
+    anthropicToOpenAIResponse,
+    anthropicEventToOpenAIChunks
+} from './format/openai-grok-compat.js';
 
 // Parse fallback flag directly from command line args to avoid circular dependency
 const args = process.argv.slice(2);
@@ -52,7 +57,8 @@ for (let i = 0; i < args.length; i++) {
 }
 
 const app = express();
-const GROK_MODELS = ['grok-4.5', 'grok-4.5-build-free'];
+const GROK_MODELS = ['grok-4.6'];
+const GROK_MODEL_DEFAULT = 'grok-4.6';
 
 // Disable x-powered-by header for security
 app.disable('x-powered-by');
@@ -685,18 +691,14 @@ app.get('/v1/models', async (req, res) => {
     try {
         await ensureInitialized();
         const { account } = accountManager.selectAccount();
-        if (!account) {
-            return res.status(503).json({
-                type: 'error',
-                error: {
-                    type: 'api_error',
-                    message: 'No accounts available'
-                }
-            });
+        let models = { object: 'list', data: [] };
+        if (account) {
+            const token = await accountManager.getTokenForAccount(account);
+            models = await listModels(token);
         }
-        const token = await accountManager.getTokenForAccount(account);
-        const models = await listModels(token);
-        if (models?.data) {
+
+        const grokAvailable = await checkGrokAvailable();
+        if (grokAvailable && models?.data) {
             const existingIds = new Set(models.data.map(model => model.id));
             for (const model of GROK_MODELS) {
                 if (!existingIds.has(model)) {
@@ -710,6 +712,16 @@ app.get('/v1/models', async (req, res) => {
                 }
             }
         }
+
+        if (!models?.data?.length) {
+            return res.status(503).json({
+                type: 'error',
+                error: {
+                    type: 'api_error',
+                    message: 'No model backend is currently available'
+                }
+            });
+        }
         res.json(models);
     } catch (error) {
         logger.error('[API] Error listing models:', error);
@@ -720,6 +732,91 @@ app.get('/v1/models', async (req, res) => {
                 message: error.message
             }
         });
+    }
+});
+
+/**
+ * OpenAI-compatible Chat Completions endpoint for the local Grok CLI bridge.
+ * Other model families continue to use the Anthropic-compatible /v1/messages route.
+ */
+app.post('/v1/chat/completions', async (req, res) => {
+    const requestedModel = req.body?.model;
+    if (!requestedModel || !requestedModel.toLowerCase().startsWith('grok-')) {
+        return res.status(400).json({
+            error: {
+                type: 'invalid_request_error',
+                message: 'This OpenAI-compatible endpoint currently supports Grok models only',
+                code: 'unsupported_model'
+            }
+        });
+    }
+    if (!Array.isArray(req.body?.messages)) {
+        return res.status(400).json({
+            error: {
+                type: 'invalid_request_error',
+                message: 'messages is required and must be an array',
+                code: 'invalid_messages'
+            }
+        });
+    }
+
+    const request = openAIToAnthropicRequest(req.body);
+    const abortController = new AbortController();
+    const abortRequest = () => abortController.abort();
+    const abortOnResponseClose = () => {
+        if (!res.writableEnded) abortRequest();
+    };
+    req.once('aborted', abortRequest);
+    res.once('close', abortOnResponseClose);
+
+    try {
+        const grokAvailable = await checkGrokAvailable({ signal: abortController.signal });
+        if (!grokAvailable) {
+            return res.status(503).json({
+                error: {
+                    type: 'api_error',
+                    message: 'Grok CLI is unavailable or no authenticated Grok account is enabled',
+                    code: 'grok_unavailable'
+                }
+            });
+        }
+
+        if (request.stream) {
+            const id = `chatcmpl_${Date.now().toString(36)}`;
+            const created = Math.floor(Date.now() / 1000);
+            const generator = sendGrokMessageStream(request, { signal: abortController.signal });
+            const firstResult = await generator.next();
+
+            res.status(200);
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            res.flushHeaders();
+
+            const writeEvent = event => {
+                for (const chunk of anthropicEventToOpenAIChunks(event, { id, model: requestedModel, created })) {
+                    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                }
+                if (res.flush) res.flush();
+            };
+            if (!firstResult.done) writeEvent(firstResult.value);
+            for await (const event of generator) writeEvent(event);
+            res.write('data: [DONE]\n\n');
+            res.end();
+            return;
+        }
+
+        const response = await sendGrokMessage(request, { signal: abortController.signal });
+        return res.json(anthropicToOpenAIResponse(response, requestedModel));
+    } catch (error) {
+        if (req.aborted || res.destroyed || res.writableEnded || error.name === 'AbortError') return;
+        const { errorType, statusCode, errorMessage } = parseError(error);
+        return res.status(statusCode).json({
+            error: { type: errorType, message: errorMessage, code: null }
+        });
+    } finally {
+        req.off('aborted', abortRequest);
+        res.off('close', abortOnResponseClose);
     }
 });
 

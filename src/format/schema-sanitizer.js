@@ -308,7 +308,7 @@ function addEnumHints(schema) {
     let result = { ...schema };
 
     // Add enum hint if present and reasonable size
-    if (Array.isArray(result.enum) && result.enum.length > 1 && result.enum.length <= 10) {
+    if (Array.isArray(result.enum) && result.enum.length > 0 && result.enum.length <= 10) {
         const vals = result.enum.map(v => String(v)).join(', ');
         result = appendDescriptionHint(result, `Allowed: ${vals}`);
     }
@@ -518,6 +518,11 @@ export function sanitizeSchema(schema) {
     for (const [key, value] of Object.entries(schema)) {
         // Convert "const" to "enum" for compatibility
         if (key === 'const') {
+            if (!sanitized.type && typeof value !== 'undefined') {
+                if (typeof value === 'boolean') sanitized.type = 'boolean';
+                else if (typeof value === 'number') sanitized.type = Number.isInteger(value) ? 'integer' : 'number';
+                else if (typeof value === 'string') sanitized.type = 'string';
+            }
             sanitized.enum = [value];
             continue;
         }
@@ -667,6 +672,66 @@ export function cleanSchema(schema) {
     // Only convert at current level - nested types already converted by recursive cleanSchema calls
     if (result.type && typeof result.type === 'string') {
         result.type = toGoogleType(result.type);
+    }
+
+    // Phase 6: Google's protobuf-based schema requires every ARRAY type to
+    // declare a single object `items` schema. Plain JSON Schema allows this
+    // to be omitted (`{ type: 'array' }` = "array of anything"), boolean
+    // (`items: true` = "any"), or tuple-form (`items: [...]`) - none of
+    // which the Cloud Code API accepts; it rejects the first two with
+    // "items: missing field". This runs after the items/properties
+    // recursion above (and after Phase 5's type conversion), so it applies
+    // at every nesting depth - fixing issue #368 (nested array schemas like
+    // `where.items.items` losing their innermost `items`).
+    if (result.type === 'ARRAY') {
+        if (!result.items || typeof result.items !== 'object') {
+            // Missing entirely, or a boolean schema like `items: true`.
+            result.items = { type: 'STRING' };
+        } else if (Array.isArray(result.items)) {
+            // Tuple-form `items: [...]` - Google only supports one items
+            // schema, so collapse to the most informative entry.
+            let best = null;
+            let bestScore = -1;
+            for (const option of result.items) {
+                const score = scoreSchemaOption(option);
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = option;
+                }
+            }
+            result.items = best || { type: 'STRING' };
+        }
+    }
+
+    // Phase 7: Google rejects `properties`/`required` on a non-OBJECT schema.
+    // These can survive on the current node after anyOf/oneOf flattening
+    // picked a non-object option while the parent still carried them.
+    if (result.type !== 'OBJECT') {
+        delete result.properties;
+        delete result.required;
+    }
+
+    // Phase 8: Google's protobuf Schema defines `repeated string enum = 6;`.
+    // The Cloud Code / Gemini API ONLY supports `enum` for STRING types, and
+    // every entry in `enum` MUST be a string. Non-string enum values (e.g.
+    // booleans from `const: true`, numbers, or objects) cause Cloud Code
+    // to reject the request with 400 Bad Request:
+    // "Invalid value at '...parameters.properties[...].value.enum[0]' (TYPE_STRING), true".
+    // On non-STRING schemas, strip `enum` (hints were already saved to description in Phase 1b).
+    // On STRING schemas, ensure every entry is converted to string and remove empty enums.
+    if (result.enum) {
+        if (result.type !== 'STRING') {
+            delete result.enum;
+        } else if (Array.isArray(result.enum)) {
+            result.enum = result.enum
+                .filter(v => v !== null && typeof v !== 'undefined')
+                .map(v => String(v));
+            if (result.enum.length === 0) {
+                delete result.enum;
+            }
+        } else {
+            delete result.enum;
+        }
     }
 
     return result;
