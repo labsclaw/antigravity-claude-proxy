@@ -266,8 +266,8 @@
                                             <div class="absolute top-1 bottom-1 left-1 w-[3px] rounded-full"
                                                  :class="isDragging(q, row) ? 'scale-y-150 brightness-150' : 'transition-all group-hover/marker:scale-y-150 group-hover/marker:brightness-125'"
                                                  :style="'background-color: ' + getThresholdColor(qIdx).bg + '; box-shadow: 0 0 ' + (isDragging(q, row) ? '10px' : '6px') + ' ' + getThresholdColor(qIdx).shadow"></div>
-                                            <!-- Tooltip popup (visible on hover or during drag) -->
-                                            <div class="absolute -top-8 left-1/2 -translate-x-1/2 items-center gap-1.5
+                                            <!-- Tooltip popup (visible on hover or during drag) — placed BELOW the bar to avoid overflow clipping -->
+                                            <div class="absolute top-full mt-2 left-1/2 -translate-x-1/2 items-center gap-1.5
                                                          whitespace-nowrap text-xs font-mono font-semibold px-2.5 py-1 rounded-md bg-space-900 border border-space-border shadow-xl shadow-black/40 z-20"
                                                  :class="isDragging(q, row) ? 'flex' : 'hidden group-hover/marker:flex'"
                                                  :style="'color: ' + getThresholdColor(qIdx).bg + '; border-color: ' + getThresholdColor(qIdx).bg + '40'">
