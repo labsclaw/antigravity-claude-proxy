@@ -85,7 +85,6 @@
                         : 'text-gray-400 hover:text-white hover:bg-space-700 hover:border-space-border'"
                     @click="$store.data.filters.family = 'gemini'; $store.data.computeQuotaRows()"
                     x-text="$store.global.t('geminiCaps')">GEMINI</button>
-            </div>
               <button
                     class="join-item btn btn-xs h-full flex-1 md:flex-none px-6 border-space-border/50 bg-space-800 transition-all font-medium text-[10px] tracking-wide"
                     :class="$store.data.filters.family === 'gpt-oss'
@@ -93,6 +92,14 @@
                         : 'text-gray-400 hover:text-white hover:bg-space-700 hover:border-space-border'"
                     @click="$store.data.filters.family = 'gpt-oss'; $store.data.computeQuotaRows()"
                     >GPT</button>
+                <button
+                    class="join-item btn btn-xs h-full flex-1 md:flex-none px-6 border-space-border/50 bg-space-800 transition-all font-medium text-[10px] tracking-wide"
+                    :class="$store.data.filters.family === 'grok'
+                        ? 'bg-orange-500/20 text-orange-400 border-orange-500/60 shadow-lg shadow-orange-500/10'
+                        : 'text-gray-400 hover:text-white hover:bg-space-700 hover:border-space-border'"
+                    @click="$store.data.filters.family = 'grok'; $store.data.computeQuotaRows()"
+                    x-text="$store.global.t('grokCaps')">GROK</button>
+            </div>
 
             <!-- Show Hidden Toggle -->
             <button

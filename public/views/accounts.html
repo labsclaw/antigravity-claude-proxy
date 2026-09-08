@@ -91,6 +91,7 @@
                     <th class="py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider w-16" x-text="$store.global.t('tier')">Tier</th>
                     <th class="py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider w-32" x-text="$store.global.t('quota')">Quota</th>
                     <th class="py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider w-24" x-text="$store.global.t('health')">Health</th>
+                    <th class="py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider w-20" x-text="'Grok'">Grok</th>
                     <th class="py-3 pr-6 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider w-32" x-text="$store.global.t('operations')">Operations</th>
                 </tr>
             </thead>
@@ -98,7 +99,7 @@
                 <!-- Empty State -->
                 <template x-if="$store.data.accounts.length === 0">
                     <tr>
-                        <td colspan="6" class="py-16 text-center">
+                        <td colspan="7" class="py-16 text-center">
                             <div class="flex flex-col items-center gap-4 max-w-lg mx-auto">
                                 <svg class="w-20 h-20 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -204,6 +205,38 @@
                                 </p>
                             </div>
                         </td>
+                        <!-- Grok status column -->
+                        <td class="py-4">
+                            <template x-if="getGrokStatus(acc.email)">
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-2 h-2 rounded-full"
+                                         :class="getGrokStatus(acc.email).hasAuth
+                                             ? 'bg-neon-green shadow-[0_0_6px_rgba(34,197,94,0.5)]'
+                                             : 'bg-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.5)]'">
+                                    </div>
+                                    <span class="text-xs font-mono"
+                                          :class="getGrokStatus(acc.email).hasAuth
+                                              ? 'text-neon-green'
+                                              : 'text-yellow-500'">
+                                        <span x-text="getGrokStatus(acc.email).hasAuth ? '✓' : 'no auth'"></span>
+                                    </span>
+                                    <template x-if="!getGrokStatus(acc.email).hasAuth">
+                                        <button class="px-2 py-1 text-[10px] font-bold font-mono uppercase tracking-wider rounded bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/30 hover:border-orange-500/50 transition-all whitespace-nowrap"
+                                                @click="retryGrokLogin(acc.email, $event)"
+                                                :disabled="grokCreating === acc.email">
+                                            <span x-text="grokCreating === acc.email ? '...' : 'Retry Login'"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                            <template x-if="!getGrokStatus(acc.email)">
+                                <button class="px-2 py-1 text-[10px] font-bold font-mono uppercase tracking-wider rounded bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/30 hover:border-orange-500/50 transition-all whitespace-nowrap"
+                                        @click="createGrokAccount(acc.email, $event)"
+                                        :disabled="grokCreating === acc.email">
+                                    <span x-text="grokCreating === acc.email ? '...' : 'Add Grok'"></span>
+                                </button>
+                            </template>
+                        </td>
                         <td class="py-4 pr-6">
                             <div class="flex justify-end gap-2">
                                 <!-- Fix Button -->
@@ -261,7 +294,7 @@
                 <!-- No Search Results -->
                 <template x-if="$store.data.accounts.length > 0 && filteredAccounts.length === 0">
                     <tr>
-                        <td colspan="6" class="py-12 text-center">
+                        <td colspan="7" class="py-12 text-center">
                             <div class="flex flex-col items-center gap-3">
                                 <svg class="w-12 h-12 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -643,6 +676,61 @@
                         :disabled="thresholdDialog.saving"
                         :class="{ 'loading': thresholdDialog.saving }">
                     <span>Save</span>
+                </button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
+
+    <!-- Grok Device Login Modal -->
+    <dialog id="grok_device_modal" class="modal backdrop-blur-sm" x-data="" @close="loginDone = false">
+        <div class="modal-box max-w-md w-full bg-space-900 border border-space-border text-gray-300 shadow-[0_0_50px_rgba(0,0,0,0.5)] p-6">
+            <h3 class="font-bold text-lg text-white mb-4">Grok Device Login</h3>
+
+            <div class="flex flex-col gap-4">
+                <!-- Account info -->
+                <div class="text-sm">
+                    <span class="text-gray-500">Account: </span>
+                    <span class="text-gray-200 font-mono" x-text="loginEmail"></span>
+                </div>
+
+                <!-- Device Code Display -->
+                <div class="bg-space-800 rounded-lg p-4 border border-space-border/50">
+                    <div class="text-xs text-gray-500 mb-2 font-mono">Your confirmation code</div>
+                    <div class="text-2xl font-bold text-neon-purple tracking-[0.3em] text-center select-all"
+                         x-text="userCode"></div>
+                </div>
+
+                <!-- Instructions -->
+                <p class="text-sm text-gray-400 leading-relaxed">
+                    1. A browser tab will open at <span class="font-mono text-neon-purple">accounts.x.ai</span>.
+                    2. Confirm the code shown above.
+                    3. Return here and click "Check Login".
+                </p>
+
+                <!-- Status -->
+                <div x-show="loginChecking && !loginDone" class="flex items-center gap-2 text-sm text-gray-400">
+                    <span class="loading loading-spinner loading-xs"></span>
+                    Waiting for authorization...
+                </div>
+                <div x-show="loginDone" class="flex items-center gap-2 text-sm text-neon-green">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Login complete!
+                </div>
+            </div>
+
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn btn-ghost hover:bg-white/10" @click="loginDone = false">Close</button>
+                </form>
+                <button class="btn bg-neon-purple hover:bg-purple-600 border-none text-white"
+                        @click="checkGrokLogin()"
+                        :disabled="loginChecking || loginDone"
+                        x-text="loginDone ? 'Done' : loginChecking ? 'Checking...' : 'Check Login'">
                 </button>
             </div>
         </div>

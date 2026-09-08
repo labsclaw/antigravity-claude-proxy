@@ -391,6 +391,7 @@ document.addEventListener('alpine:init', () => {
             if (lower.includes('claude')) return 'claude';
             if (lower.includes('gemini')) return 'gemini';
             if (lower.includes('gpt-oss')) return 'gpt-oss';
+            if (lower.startsWith('grok-')) return 'grok';
             return 'other';
         },
 

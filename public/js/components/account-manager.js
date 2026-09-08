@@ -18,10 +18,185 @@ window.Components.accountManager = () => ({
     healthData: {},
     healthLoading: false,
 
+    // Grok accounts linked by email
+    grokAccounts: [],
+    grokByEmail: {},
+    deviceUrl: '',
+    userCode: '',
+    loginAlias: '',
+    loginEmail: '',
+    loginChecking: false,
+    loginDone: false,
+    grokLoading: false,
+    grokCreating: null,
+
     init() {
         if (Alpine.store('data').devMode && Alpine.store('settings').healthInspectorOpen) {
             this.fetchHealthData();
         }
+        this.fetchGrokAccounts();
+    },
+
+    async fetchGrokAccounts() {
+        this.grokLoading = true;
+        try {
+            const password = Alpine.store('global').webuiPassword;
+            const { response } = await window.utils.request('/api/grok/accounts', {}, password);
+            if (response.ok) {
+                const data = await response.json();
+                this.grokAccounts = data.accounts || [];
+                this.grokByEmail = {};
+                for (const acc of this.grokAccounts) {
+                    this.grokByEmail[acc.email] = acc;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to fetch grok accounts:', e);
+        } finally {
+            this.grokLoading = false;
+        }
+    },
+
+    getGrokStatus(email) {
+        return this.grokByEmail[email] || null;
+    },
+
+    async createGrokAccount(email, event) {
+        if (event) event.stopPropagation();
+        this.grokCreating = email;
+        try {
+            const alias = email.split('@')[0].replace(/[^a-zA-Z0-9_-]/g, '-');
+            const password = Alpine.store('global').webuiPassword;
+            const { response } = await window.utils.request('/api/grok/accounts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alias, email })
+            }, password);
+
+            if (!response.ok) {
+                const err = await response.json();
+                Alpine.store('global').showToast(err.error || 'Failed to create Grok account', 'error');
+                return;
+            }
+
+            // Start device code login
+            Alpine.store('global').showToast('Starting Grok device login...', 'info');
+            const loginResp = await window.utils.request(`/api/grok/accounts/${encodeURIComponent(alias)}/login`, {
+                method: 'POST'
+            }, password);
+
+            if (!loginResp.response.ok) {
+                const err = await loginResp.response.json();
+                Alpine.store('global').showToast(err.error || 'Failed to start Grok login', 'error');
+                await this.fetchGrokAccounts();
+                return;
+            }
+
+            const loginData = await loginResp.response.json();
+            if (loginData.status === 'ok' && loginData.deviceUrl) {
+                // Open device URL and show modal
+                this.deviceUrl = loginData.deviceUrl;
+                this.userCode = loginData.userCode;
+                this.loginAlias = alias;
+                this.loginEmail = email;
+                this.loginChecking = false;
+                this.loginDone = false;
+                document.getElementById('grok_device_modal').showModal();
+                window.open(loginData.deviceUrl, '_blank');
+                // Start auto-polling
+                this.pollGrokLogin();
+            } else {
+                Alpine.store('global').showToast('Got device code response but no URL', 'error');
+                await this.fetchGrokAccounts();
+            }
+        } catch (e) {
+            Alpine.store('global').showToast('Error: ' + e.message, 'error');
+            await this.fetchGrokAccounts();
+        } finally {
+            this.grokCreating = null;
+        }
+    },
+
+    async retryGrokLogin(email, event) {
+        if (event) event.stopPropagation();
+        this.grokCreating = email;
+        try {
+            const grokAcc = this.getGrokStatus(email);
+            if (!grokAcc) {
+                Alpine.store('global').showToast('Grok account not found for ' + email, 'error');
+                return;
+            }
+            const alias = grokAcc.alias;
+            const password = Alpine.store('global').webuiPassword;
+
+            Alpine.store('global').showToast('Starting Grok device login...', 'info');
+            const loginResp = await window.utils.request('/api/grok/accounts/' + encodeURIComponent(alias) + '/login', {
+                method: 'POST'
+            }, password);
+
+            if (!loginResp.response.ok) {
+                const err = await loginResp.response.json();
+                Alpine.store('global').showToast(err.error || 'Failed to start Grok login', 'error');
+                await this.fetchGrokAccounts();
+                return;
+            }
+
+            const loginData = await loginResp.response.json();
+            if (loginData.status === 'ok' && loginData.deviceUrl) {
+                this.deviceUrl = loginData.deviceUrl;
+                this.userCode = loginData.userCode;
+                this.loginAlias = alias;
+                this.loginEmail = email;
+                this.loginDone = false;
+                document.getElementById('grok_device_modal').showModal();
+                window.open(this.deviceUrl, '_blank');
+                this.pollGrokLogin();
+            } else {
+                Alpine.store('global').showToast('Got device code response but no URL', 'error');
+                await this.fetchGrokAccounts();
+            }
+        } catch (e) {
+            Alpine.store('global').showToast('Error: ' + e.message, 'error');
+            await this.fetchGrokAccounts();
+        } finally {
+            this.grokCreating = null;
+        }
+    },
+
+    async checkGrokLogin() {
+        this.loginChecking = true;
+        try {
+            const password = Alpine.store('global').webuiPassword;
+            const { response } = await window.utils.request(
+                `/api/grok/accounts/${encodeURIComponent(this.loginAlias)}/login-check`,
+                { method: 'POST' },
+                password
+            );
+            if (response.ok) {
+                const data = await response.json();
+                if (data.hasAuth) {
+                    this.loginDone = true;
+                    document.getElementById('grok_device_modal').close();
+                    Alpine.store('global').showToast(`Grok login complete for ${this.loginEmail}`, 'success');
+                    await this.fetchGrokAccounts();
+                    return true;
+                }
+            }
+        } catch (e) {
+            console.error('Login check error:', e);
+        }
+        this.loginChecking = false;
+        return false;
+    },
+
+    pollGrokLogin() {
+        if (this.loginDone) return;
+        setTimeout(async () => {
+            if (document.getElementById('grok_device_modal')?.open) {
+                const done = await this.checkGrokLogin();
+                if (!done) this.pollGrokLogin();
+            }
+        }, 3000);
     },
 
     get filteredAccounts() {
