@@ -253,7 +253,7 @@ window.Components.models = () => ({
      */
     getMarkerOffset(q, row, qIdx) {
         const pct = this.getMarkerPct(q, row);
-        const visible = row.quotaInfo.filter(item => item.thresholdPct > 0 || this.isDragging(item, row));
+        const visible = row.quotaInfo.filter(item => (item.thresholdSource !== 'global' && item.thresholdPct > 0) || this.isDragging(item, row));
         // Find all markers within 2% of this one
         const cluster = [];
         visible.forEach((item, idx) => {

@@ -254,8 +254,8 @@
                                             row.avgQuota > 50 ? 'progress-gradient-success' : (row.avgQuota > 0 ? 'progress-gradient-warning' : 'progress-gradient-error')
                                         ]"
                                         :value="row.avgQuota" max="100"></progress>
-                                    <!-- Per-account draggable quota threshold markers -->
-                                    <template x-for="(q, qIdx) in row.quotaInfo.filter(q => q.thresholdPct > 0 || isDragging(q, row))" :key="q.fullEmail + '-threshold'">
+                                    <!-- Per-account draggable quota threshold markers (only show individual account/model overrides, not global default) -->
+                                    <template x-for="(q, qIdx) in row.quotaInfo.filter(q => (q.thresholdSource !== 'global' && q.thresholdPct > 0) || isDragging(q, row))" :key="q.fullEmail + '-threshold'">
                                         <div class="absolute -top-1 -bottom-1 group/marker"
                                              :class="isDragging(q, row) ? 'cursor-grabbing z-30' : 'cursor-grab'"
                                              :style="'left: calc(' + getMarkerPct(q, row) + '% - 4px); width: 9px; transform: translateX(' + (isDragging(q, row) ? '0px' : getMarkerOffset(q, row, qIdx)) + ');'"
