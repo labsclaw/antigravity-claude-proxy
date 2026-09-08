@@ -197,12 +197,12 @@
             <tbody class="text-sm">
                 <template x-for="row in $store.data.quotaRows" :key="row.modelId">
                     <tr class="group transition-all duration-300" :class="row.hidden ? 'opacity-40 grayscale hover:opacity-100 hover:grayscale-0 bg-space-900/50' : ''">
-                        <td class="!pl-4 align-top pt-3">
+                        <td class="!pl-4" style="vertical-align: top; padding-top: 12px;">
                             <div class="w-2 h-2 rounded-full transition-all duration-500"
                                 :class="row.avgQuota > 0 ? 'bg-neon-green shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]'">
                             </div>
                         </td>
-                        <td class="align-top">
+                        <td style="vertical-align: top;">
                             <div class="font-bold text-gray-200 group-hover:text-neon-purple transition-colors"
                                 :class="$store.settings.compact ? 'text-xs' : ''"
                                 x-text="row.modelId"></div>
@@ -311,14 +311,14 @@
                                 </div>
                             </div>
                         </td>
-                        <td x-show="!$store.settings.compact" class="font-mono text-xs align-top">
+                        <td x-show="!$store.settings.compact" class="font-mono text-xs" style="vertical-align: top;">
                             <div class="tooltip tooltip-left"
                                  :data-tip="row.quotaInfo && row.quotaInfo.length > 0 ? row.quotaInfo.filter(q => q.resetTime).map(q => Redact.email(q.email) + ': ' + q.resetTime).join('\n') : 'No reset data'">
                                 <span x-text="row.resetIn"
                                     :class="(row.resetIn && row.resetIn.indexOf('h') === -1 && row.resetIn !== '-') ? 'text-neon-purple font-bold' : 'text-gray-400'"></span>
                             </div>
                         </td>
-                        <td x-show="!$store.settings.compact" class="align-top">
+                        <td x-show="!$store.settings.compact" style="vertical-align: top;">
                             <div class="flex items-center justify-start gap-3">
                                 <div class="text-[10px] font-mono text-gray-500 hidden xl:block text-left leading-tight opacity-70">
                                     <div
@@ -356,7 +356,7 @@
                                 </div>
                             </div>
                         </td>
-                        <td class="text-right !pr-4 align-top pt-2">
+                        <td class="text-right !pr-4" style="vertical-align: top; padding-top: 8px;">
                             <div
                                 class="flex items-center justify-end gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                                 <!-- Pin Toggle -->
