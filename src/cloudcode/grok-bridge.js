@@ -167,7 +167,7 @@ function isRateLimited(code, stderr, json) {
     const lower = stderr.toLowerCase();
     if (lower.includes('rate limit') || lower.includes('429') || lower.includes('too many requests')) return true;
     if (code === 1 && json?.stopReason === 'Cancelled') return false;
-    return code !== 0 && code !== null;
+    return false;
 }
 
 function writePromptFile(prompt) {
@@ -277,7 +277,7 @@ export function createGrokBridge({
         const promptFile = writePromptFile(prompt);
         try {
             const result = await runGrok(
-                ['--prompt-file', promptFile, '--output-format', 'json', '--max-turns', '1'],
+                ['--prompt-file', promptFile, '--output-format', 'json', '--max-turns', '1', '--model', model],
                 account,
                 { signal, timeoutMs: requestTimeoutMs }
             );
@@ -288,6 +288,10 @@ export function createGrokBridge({
             }
             if (isRateLimited(result.code, result.stderr, parsed)) {
                 throw Object.assign(new Error('Rate limited'), { rateLimited: true });
+            }
+            if (result.code !== 0) {
+                const output = parsed?.message || result.stderr.trim() || result.stdout.trim() || `exit code ${result.code}`;
+                throw new Error(`Grok CLI failed: ${output.substring(0, 500)}`);
             }
             if (!parsed) {
                 const output = result.stdout.substring(0, 200) || result.stderr.substring(0, 200);
@@ -320,7 +324,6 @@ export function createGrokBridge({
                     logger.warn(`[GrokBridge] Account ${account.alias} rate-limited, trying next`);
                     continue;
                 }
-                accountManager.markRateLimited(account.alias, error.message);
                 throw error;
             }
         }

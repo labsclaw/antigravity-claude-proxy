@@ -11,6 +11,10 @@ const GROK_CONFIG_PATH = join(homedir(), '.antigravity-grok-accounts.json');
 const GROK_RATE_LIMIT_COOLDOWN = 120_000;
 const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;
 
+export function hasGrokAuthFile(baseDir, existsSyncImpl = existsSync) {
+    return existsSyncImpl(join(baseDir, '.grok', 'auth.json'));
+}
+
 export class GrokAccountManager {
     #accounts = [];
     #strategy = 'round-robin';
@@ -68,7 +72,7 @@ export class GrokAccountManager {
 
     #hasAuthFile(dir) {
         const base = join(homedir(), dir);
-        return existsSync(join(base, '.grok', 'auth.json')) || existsSync(join(base, 'auth.json'));
+        return hasGrokAuthFile(base);
     }
 
     getHomeDir(alias) {
