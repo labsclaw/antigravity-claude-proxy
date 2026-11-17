@@ -63,6 +63,7 @@ export function sleep(ms) {
 export function isNetworkError(error) {
     const msg = error.message.toLowerCase();
     return (
+        error.name === 'TimeoutError' ||
         msg.includes('fetch failed') ||
         msg.includes('network error') ||
         msg.includes('econnreset') ||
@@ -70,6 +71,31 @@ export function isNetworkError(error) {
         msg.includes('socket hang up') ||
         msg.includes('timeout')
     );
+}
+
+function waitForDelay(ms, signal) {
+    if (!signal) {
+        return sleep(ms);
+    }
+
+    const abortReason = () => signal.reason || new DOMException('The operation was aborted', 'AbortError');
+    if (signal.aborted) {
+        return Promise.reject(abortReason());
+    }
+
+    return new Promise((resolve, reject) => {
+        let timer;
+        const onAbort = () => {
+            clearTimeout(timer);
+            reject(abortReason());
+        };
+
+        timer = setTimeout(() => {
+            signal.removeEventListener('abort', onAbort);
+            resolve();
+        }, ms);
+        signal.addEventListener('abort', onAbort, { once: true });
+    });
 }
 
 /**
@@ -83,7 +109,7 @@ export async function throttledFetch(url, options) {
     if (config.requestThrottlingEnabled) {
         const delayMs = config.requestDelayMs || 200;
         if (delayMs > 0) {
-            await sleep(delayMs);
+            await waitForDelay(delayMs, options?.signal);
         }
     }
     return fetch(url, options);

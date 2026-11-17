@@ -15,7 +15,7 @@
 import path from 'path';
 import express from 'express';
 import { getPublicConfig, saveConfig, config } from '../config.js';
-import { DEFAULT_PORT, ACCOUNT_CONFIG_PATH, MAX_ACCOUNTS, DEFAULT_PRESETS, DEFAULT_SERVER_PRESETS } from '../constants.js';
+import { DEFAULT_PORT, ACCOUNT_CONFIG_PATH, MAX_ACCOUNTS, DEFAULT_PRESETS } from '../constants.js';
 import { readClaudeConfig, updateClaudeConfig, replaceClaudeConfig, getClaudeConfigPath, readPresets, savePreset, deletePreset } from '../utils/claude-config.js';
 import { readServerPresets, saveServerPreset, updateServerPreset, deleteServerPreset } from '../utils/server-presets.js';
 import { logger } from '../utils/logger.js';
@@ -271,10 +271,6 @@ export function mountWebUI(app, dirname, accountManager) {
 
     // Serve static files from public directory
     app.use(express.static(path.join(dirname, '../public')));
-
-    // ==========================================
-    // Account Management API
-    // ==========================================
 
     /**
      * GET /api/accounts - List all accounts with status
@@ -567,10 +563,6 @@ export function mountWebUI(app, dirname, accountManager) {
         }
     });
 
-    // ==========================================
-    // Configuration API
-    // ==========================================
-
     /**
      * GET /api/config - Get server configuration
      */
@@ -716,10 +708,6 @@ export function mountWebUI(app, dirname, accountManager) {
         }
     });
 
-    // ==========================================
-    // Claude CLI Configuration API
-    // ==========================================
-
     /**
      * GET /api/claude/config - Get Claude CLI configuration
      */
@@ -803,10 +791,6 @@ export function mountWebUI(app, dirname, accountManager) {
         }
     });
 
-    // ==========================================
-    // Claude CLI Mode Toggle API (Proxy/Paid)
-    // ==========================================
-
     /**
      * GET /api/claude/mode - Get current mode (proxy or paid)
      * Returns 'proxy' if ANTHROPIC_BASE_URL is set to localhost, 'paid' otherwise
@@ -882,10 +866,6 @@ export function mountWebUI(app, dirname, accountManager) {
         }
     });
 
-    // ==========================================
-    // Claude CLI Presets API
-    // ==========================================
-
 
     /**
      * GET /api/claude/presets - Get all saved presets
@@ -935,10 +915,6 @@ export function mountWebUI(app, dirname, accountManager) {
             res.status(500).json({ status: 'error', error: error.message });
         }
     });
-
-    // ==========================================
-    // Server Configuration Presets API
-    // ==========================================
 
     /**
      * GET /api/server/presets - List all server config presets
@@ -1076,10 +1052,6 @@ export function mountWebUI(app, dirname, accountManager) {
         }
     });
 
-    // ==========================================
-    // Logs API
-    // ==========================================
-
     /**
      * GET /api/logs - Get log history
      */
@@ -1121,10 +1093,6 @@ export function mountWebUI(app, dirname, accountManager) {
         });
     });
 
-    // ==========================================
-    // Strategy Health API (Developer Mode)
-    // ==========================================
-
     /**
      * GET /api/strategy/health - Get strategy health data for the inspector panel
      * Only available when devMode is enabled
@@ -1148,10 +1116,6 @@ export function mountWebUI(app, dirname, accountManager) {
             res.status(500).json({ status: 'error', error: error.message });
         }
     });
-
-    // ==========================================
-    // OAuth API
-    // ==========================================
 
     /**
      * GET /api/auth/url - Get OAuth URL to start the flow

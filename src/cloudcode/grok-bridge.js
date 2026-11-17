@@ -5,7 +5,7 @@ import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from 'child_process';
 import crypto from 'crypto';
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { homedir, tmpdir } from 'os';
-import { delimiter, join } from 'path';
+import { delimiter, join, win32 } from 'path';
 import { GrokAccountManager } from '../grok/grok-account-manager.js';
 import { logger } from '../utils/logger.js';
 
@@ -104,7 +104,7 @@ export function terminateGrokProcess(child, {
     systemRoot = process.env.SystemRoot || 'C:\\Windows'
 } = {}) {
     if (platform === 'win32' && Number.isInteger(child.pid)) {
-        const taskkill = join(systemRoot, 'System32', 'taskkill.exe');
+        const taskkill = win32.join(systemRoot, 'System32', 'taskkill.exe');
         const result = spawnSyncImpl(taskkill, ['/pid', String(child.pid), '/t', '/f'], {
             stdio: 'ignore',
             shell: false,
@@ -167,7 +167,7 @@ function isRateLimited(code, stderr, json) {
     const lower = stderr.toLowerCase();
     if (lower.includes('rate limit') || lower.includes('429') || lower.includes('too many requests')) return true;
     if (code === 1 && json?.stopReason === 'Cancelled') return false;
-    return code !== 0 && code !== null;
+    return false;
 }
 
 function writePromptFile(prompt) {
@@ -277,7 +277,7 @@ export function createGrokBridge({
         const promptFile = writePromptFile(prompt);
         try {
             const result = await runGrok(
-                ['--prompt-file', promptFile, '--output-format', 'json', '--max-turns', '1'],
+                ['--prompt-file', promptFile, '--output-format', 'json', '--max-turns', '1', '--model', model],
                 account,
                 { signal, timeoutMs: requestTimeoutMs }
             );
@@ -288,6 +288,10 @@ export function createGrokBridge({
             }
             if (isRateLimited(result.code, result.stderr, parsed)) {
                 throw Object.assign(new Error('Rate limited'), { rateLimited: true });
+            }
+            if (result.code !== 0) {
+                const output = parsed?.message || result.stderr.trim() || result.stdout.trim() || `exit code ${result.code}`;
+                throw new Error(`Grok CLI failed: ${output.substring(0, 500)}`);
             }
             if (!parsed) {
                 const output = result.stdout.substring(0, 200) || result.stderr.substring(0, 200);
@@ -300,7 +304,7 @@ export function createGrokBridge({
     }
 
     async function sendGrokMessage(anthropicRequest, options = {}) {
-        const model = anthropicRequest.model || 'grok-4.5';
+        const model = anthropicRequest.model || 'grok-4.7';
         const prompt = buildGrokPrompt(anthropicRequest);
         await accountManager.initialize();
         const maxAttempts = Math.max(1, accountManager.getAccounts().length || 1);
@@ -320,7 +324,6 @@ export function createGrokBridge({
                     logger.warn(`[GrokBridge] Account ${account.alias} rate-limited, trying next`);
                     continue;
                 }
-                accountManager.markRateLimited(account.alias, error.message);
                 throw error;
             }
         }
@@ -328,7 +331,7 @@ export function createGrokBridge({
     }
 
     async function* sendGrokMessageStream(anthropicRequest, options = {}) {
-        const model = anthropicRequest.model || 'grok-4.5';
+        const model = anthropicRequest.model || 'grok-4.7';
         const response = await sendGrokMessage(anthropicRequest, options);
         const text = response.content[0]?.text || '';
         yield {

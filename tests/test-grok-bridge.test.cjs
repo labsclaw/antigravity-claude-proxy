@@ -31,18 +31,35 @@ function createSpawnStub(plans) {
 
 function createAccountManager() {
     const account = { alias: 'test', dir: '.grok-test', homeDir: 'C:\\test-grok-home' };
+    const calls = { rateLimited: [] };
     return {
+        calls,
         initialize: async () => {},
         selectAccount: () => account,
         getAccounts: () => [account],
         markSuccess: () => {},
-        markRateLimited: () => {},
+        markRateLimited: (...args) => calls.rateLimited.push(args),
     };
 }
 
 async function loadBridge() {
     return import('../src/cloudcode/grok-bridge.js');
 }
+
+test('Grok authentication supports nested and root CLI layouts on the host platform', async () => {
+    const { hasGrokAuthFile } = await import('../src/grok/grok-account-manager.js');
+    const { join } = require('node:path');
+    const base = 'account-home';
+    for (const authPath of [join(base, '.grok', 'auth.json'), join(base, 'auth.json')]) {
+        const checked = [];
+        assert.equal(hasGrokAuthFile(base, candidate => {
+            checked.push(candidate);
+            return candidate === authPath;
+        }), true);
+        assert.ok(checked.includes(authPath));
+    }
+    assert.equal(hasGrokAuthFile(base, () => false), false);
+});
 
 test('health check hides the Windows subprocess and does not use a shell for grok.exe', async () => {
     const { createGrokBridge } = await loadBridge();
@@ -88,6 +105,28 @@ test('request buffers JSON output, keeps the process hidden, and preserves respo
     assert.equal(stub.calls[0].options.windowsHide, true);
     assert.equal(stub.calls[0].options.shell, false);
     assert.deepEqual(stub.calls[0].options.stdio, ['ignore', 'pipe', 'pipe']);
+    assert.deepEqual(stub.calls[0].args.slice(-2), ['--model', 'grok-4.5']);
+});
+
+test('non-rate-limit CLI failures preserve the real error', async () => {
+    const { createGrokBridge } = await loadBridge();
+    const manager = createAccountManager();
+    const stub = createSpawnStub([child => {
+        child.stdout.end('{"type":"error","message":"Not signed in"}');
+        child.stderr.end('Error: Not signed in');
+        child.emit('close', 1);
+    }]);
+    const bridge = createGrokBridge({
+        accountManager: manager,
+        spawnImpl: stub.spawnImpl,
+        grokCommand: { command: 'grok', kind: 'executable' },
+    });
+
+    await assert.rejects(
+        bridge.sendGrokMessage({ model: 'grok-4.6', messages: [] }),
+        /Not signed in/,
+    );
+    assert.equal(manager.calls.rateLimited.length, 0);
 });
 
 test('buffered streaming emits a complete Anthropic SSE event sequence', async () => {

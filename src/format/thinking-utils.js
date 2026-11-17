@@ -4,12 +4,8 @@
  */
 
 import { MIN_SIGNATURE_LENGTH } from '../constants.js';
-import { getCachedSignatureFamily } from './signature-cache.js';
+import { getCachedSignature, getCachedSignatureFamily } from './signature-cache.js';
 import { logger } from '../utils/logger.js';
-
-// ============================================================================
-// Gemini Thinking Budget Limits (Issue #289)
-// ============================================================================
 
 // Max thinking budget per Gemini model version
 // Gemini 2.5 Flash: max 24,576 (API error: "supported values are integers from 1 to 24576")
@@ -57,10 +53,6 @@ export function clampGeminiThinkingBudget(modelName, budget) {
     return requestedBudget;
 }
 
-// ============================================================================
-// Cache Control Cleaning (Issue #189)
-// ============================================================================
-
 /**
  * Remove cache_control fields from all content blocks in messages.
  * This is a critical fix for Issue #189 where Claude Code CLI sends cache_control
@@ -94,7 +86,7 @@ export function cleanCacheControl(messages) {
             if (block.cache_control === undefined) return block;
 
             // Create a shallow copy without cache_control
-            const { cache_control, ...cleanBlock } = block;
+            const { cache_control: _cacheControl, ...cleanBlock } = block;
             removedCount++;
 
             return cleanBlock;
@@ -431,10 +423,6 @@ export function reorderAssistantContent(content) {
     return reordered;
 }
 
-// ============================================================================
-// Thinking Recovery Functions
-// ============================================================================
-
 /**
  * Check if a message has any VALID (signed) thinking blocks.
  * Only counts thinking blocks that have valid signatures, not unsigned ones
@@ -447,6 +435,11 @@ function messageHasValidThinking(message) {
     const content = message.content || message.parts || [];
     if (!Array.isArray(content)) return false;
     return content.some(block => {
+        if (block && (block.type === 'tool_use' || block.functionCall)) {
+            if (block.thoughtSignature && block.thoughtSignature.length >= MIN_SIGNATURE_LENGTH) return true;
+            if (block.id && getCachedSignature(block.id)) return true;
+            return false;
+        }
         if (!isThinkingPart(block)) return false;
         // Check for valid signature (Anthropic style)
         if (block.signature && block.signature.length >= MIN_SIGNATURE_LENGTH) return true;
@@ -651,6 +644,21 @@ function stripInvalidThinkingBlocks(messages, targetFamily = null) {
  * @returns {Array<Object>} Modified messages with synthetic messages injected
  */
 export function closeToolLoopForThinking(messages, targetFamily = null) {
+    // Escape hatch (Gemini only): skip the synthetic-message injection.
+    // Google's backend accepts raw mid-tool-loop and interrupted-tool
+    // histories natively (verified 2026-09-03: identical answers with and
+    // without injection), so for Gemini targets the fabricated messages are
+    // pure downside — a fake "[Continue]" becomes the model's latest user
+    // instruction and the count-bearing text is unstable across requests.
+    // Claude targets keep the recovery: the Anthropic API hard-rejects
+    // unclosed tool_use ids, so the interrupted-tool synthesis stays needed.
+    // Set ANTIGRAVITY_DISABLE_THINKING_RECOVERY=1 to activate.
+    if (
+        process.env.ANTIGRAVITY_DISABLE_THINKING_RECOVERY === '1' &&
+        targetFamily === 'gemini'
+    ) {
+        return messages;
+    }
     const state = analyzeConversationState(messages);
 
     // Handle neither tool loop nor interrupted tool

@@ -163,7 +163,7 @@ function mergeAllOf(schema) {
 
         // Merge properties (allOf properties override parent for same keys)
         if (Object.keys(mergedProperties).length > 0) {
-            result.properties = { ...mergedProperties, ...(result.properties || {}) };
+            result.properties = { ...mergedProperties, ...result.properties };
         }
 
         // Merge required
@@ -288,10 +288,6 @@ function flattenAnyOfOneOf(schema) {
 
     return result;
 }
-
-// ============================================================================
-// Enhanced Schema Hints (for preserving semantic information)
-// ============================================================================
 
 /**
  * Add hints for enum values (if ≤10 values).
@@ -532,6 +528,12 @@ export function sanitizeSchema(schema) {
             continue;
         }
 
+        // Sanitize enum values: Google requires TYPE_STRING for enum entries
+        if (key === 'enum' && Array.isArray(value)) {
+            sanitized.enum = value.map(v => (typeof v === 'string') ? v : String(v));
+            continue;
+        }
+
         if (key === 'properties' && value && typeof value === 'object') {
             sanitized.properties = {};
             for (const [propKey, propValue] of Object.entries(value)) {
@@ -601,7 +603,6 @@ export function cleanSchema(schema) {
     if (!schema || typeof schema !== 'object') return schema;
     if (Array.isArray(schema)) return schema.map(cleanSchema);
 
-    // Phase 1: Convert $refs to hints
     let result = convertRefsToHints(schema);
 
     // Phase 1b: Add enum hints (preserves enum info in description)
@@ -622,7 +623,6 @@ export function cleanSchema(schema) {
     // Phase 2c: Flatten type arrays and update required for nullable
     result = flattenTypeArrays(result);
 
-    // Phase 3: Remove unsupported keywords
     const unsupported = [
         'additionalProperties', 'default', '$schema', '$defs',
         'definitions', '$ref', '$id', '$comment', 'title',
@@ -642,7 +642,6 @@ export function cleanSchema(schema) {
         }
     }
 
-    // Phase 4: Final cleanup - recursively clean nested schemas and validate required
     if (result.properties && typeof result.properties === 'object') {
         const newProps = {};
         for (const [key, value] of Object.entries(result.properties)) {
@@ -668,8 +667,6 @@ export function cleanSchema(schema) {
         }
     }
 
-    // Phase 5: Convert type to Google's uppercase format (STRING, OBJECT, ARRAY, etc.)
-    // Only convert at current level - nested types already converted by recursive cleanSchema calls
     if (result.type && typeof result.type === 'string') {
         result.type = toGoogleType(result.type);
     }

@@ -621,3 +621,16 @@ test('rate-limit maintenance timer does not keep handler imports alive', async (
     ], { cwd: process.cwd(), timeout: 3000 });
     assert.match(result.stdout, /imports-exited/);
 });
+
+
+test('normal builder entry keeps fallback IDs restart-stable and client/model scoped', async () => {
+    const { session, builder, affinity } = await modules();
+    const request = { model: 'claude-test', messages: [{ role: 'user', content: 'restart proof' }] };
+    const keyA = affinity.deriveAffinityKey(request, null, 'client-a');
+    const keyB = affinity.deriveAffinityKey(request, null, 'client-b');
+    const id = builder.buildCloudCodeRequest(request, 'project', 'a@example.com', keyA).request.sessionId;
+    session.clearSessionStore();
+    assert.equal(builder.buildCloudCodeRequest(request, 'project', 'a@example.com', keyA).request.sessionId, id);
+    assert.notEqual(builder.buildCloudCodeRequest(request, 'project', 'a@example.com', keyB).request.sessionId, id);
+    assert.notEqual(builder.buildCloudCodeRequest({ ...request, model: 'other' }, 'project', 'a@example.com', keyA).request.sessionId, id);
+});

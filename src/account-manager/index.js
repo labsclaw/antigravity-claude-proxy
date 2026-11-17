@@ -342,10 +342,6 @@ export class AccountManager {
         return getLimitInfo(this.#accounts, email, modelId);
     }
 
-    // ============================================================================
-    // Cooldown Methods (matches opencode-antigravity-auth)
-    // ============================================================================
-
     /**
      * Mark an account as cooling down for a specified duration
      * Used for temporary backoff separate from rate limits
@@ -394,12 +390,13 @@ export class AccountManager {
      * @returns {Promise<string>} OAuth access token
      * @throws {Error} If token refresh fails
      */
-    async getTokenForAccount(account) {
+    async getTokenForAccount(account, requestOptions = {}) {
         return fetchToken(
             account,
             this.#tokenCache,
             (email, reason) => this.markInvalid(email, reason),
-            () => this.saveToDisk()
+            () => this.saveToDisk(),
+            requestOptions
         );
     }
 

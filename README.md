@@ -45,7 +45,7 @@ A proxy server that exposes an **Anthropic-compatible API** backed by **Antigrav
 
 ## Prerequisites
 
-- **Node.js** 18 or later
+- **Node.js** 22.19.0 or later
 - **Antigravity** installed (for single-account mode) OR Google account(s) for multi-account mode
 
 ---
@@ -339,4 +339,4 @@ MIT
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=badrisnarayanan/antigravity-claude-proxy&type=date&legend=top-left&cache-control=no-cache)](https://www.star-history.com/#badrisnarayanan/antigravity-claude-proxy&type=date&legend=top-left)
+[![Star History Chart](https://star-history.dera.page/svg?repos=badrisnarayanan/antigravity-claude-proxy&type=date&legend=top-left&cache-control=no-cache)](https://star-history.dera.page/#badrisnarayanan/antigravity-claude-proxy&type=date&legend=top-left)
