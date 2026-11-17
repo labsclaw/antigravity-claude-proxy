@@ -1,6 +1,6 @@
 {
   "name": "antigravity-claude-proxy",
-  "version": "2.7.7",
+  "version": "3.1.1",
   "description": "Proxy server to use Antigravity's Claude models with Claude Code CLI",
   "main": "src/index.js",
   "type": "module",
@@ -37,9 +37,12 @@
     "test:emptyretry": "node tests/test-empty-response-retry.cjs",
     "test:sanitizer": "node tests/test-schema-sanitizer.cjs",
     "test:strategies": "node tests/test-strategies.cjs",
-    "test:session-hybrid": "node --test tests/test-session-hybrid.test.cjs",
     "test:cache-control": "node tests/test-cache-control.cjs",
-    "test:grok": "node --test tests/test-grok-bridge.test.cjs"
+    "test:billing-header": "node tests/test-billing-header.cjs",
+    "test:stats": "node tests/test-usage-stats.js",
+    "test:session-hybrid": "node --test tests/test-session-hybrid.test.cjs",
+    "test:grok": "node --test tests/test-grok-bridge.test.cjs",
+    "test:offline": "node tests/run-offline.cjs"
   },
   "keywords": [
     "claude",
@@ -59,14 +62,14 @@
     "url": "https://github.com/badri-s2001/antigravity-claude-proxy/issues"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.19.0"
   },
   "dependencies": {
     "async-mutex": "^0.5.0",
-    "better-sqlite3": "^12.5.0",
+    "better-sqlite3": "^13.0.3",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "undici": "^7.20.0"
+    "express": "^5.3.0",
+    "undici": "^8.12.4"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.7",

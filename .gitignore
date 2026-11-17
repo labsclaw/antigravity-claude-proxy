@@ -33,3 +33,9 @@ tests/utils/*.jpeg
 # Build output
 dist/
 build/
+
+# aislop scan history
+.aislop/
+
+# Local structural index (regenerate with graphify update .)
+graphify-out/

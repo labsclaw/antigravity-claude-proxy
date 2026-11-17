@@ -29,9 +29,9 @@ import { config } from './config.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { forceRefresh } from './auth/token-extractor.js';
-import { REQUEST_BODY_LIMIT } from './constants.js';
+import { REQUEST_BODY_LIMIT, BUILTIN_MODEL_MAPPINGS } from './constants.js';
 import { AccountManager } from './account-manager/index.js';
-import { clearThinkingSignatureCache } from './format/signature-cache.js';
+import { clearAllSignatureCaches } from './format/signature-cache.js';
 import { formatDuration } from './utils/helpers.js';
 import { logger } from './utils/logger.js';
 import usageStats from './modules/usage-stats.js';
@@ -68,7 +68,6 @@ export const accountManager = new AccountManager();
 
 // Track initialization status
 let isInitialized = false;
-let initError = null;
 let initPromise = null;
 
 /**
@@ -87,7 +86,6 @@ async function ensureInitialized() {
             const status = accountManager.getStatus();
             logger.success(`[Server] Account pool initialized: ${status.summary}`);
         } catch (error) {
-            initError = error;
             initPromise = null; // Allow retry on failure
             logger.error('[Server] Failed to initialize account manager:', error.message);
             throw error;
@@ -100,6 +98,12 @@ async function ensureInitialized() {
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+// Express 5 leaves req.body undefined when no body was parsed (Express 4 set {}).
+// Keep the old behavior so handlers can destructure req.body safely.
+app.use((req, res, next) => {
+    if (req.body === undefined) req.body = {};
+    next();
+});
 
 // API Key authentication middleware for /v1/* endpoints
 app.use('/v1', (req, res, next) => {
@@ -132,7 +136,6 @@ app.use('/v1', (req, res, next) => {
     next();
 });
 
-// Setup usage statistics middleware
 usageStats.setupMiddleware(app);
 
 /**
@@ -141,11 +144,9 @@ usageStats.setupMiddleware(app);
  * Using app.use instead of app.post for earlier middleware interception
  */
 app.use((req, res, next) => {
-    // Handle Claude Code event logging requests silently
     if (req.method === 'POST' && req.path === '/api/event_logging/batch') {
         return res.status(200).json({ status: 'ok' });
     }
-    // Handle Claude Code root POST requests silently
     if (req.method === 'POST' && req.path === '/') {
         return res.status(200).json({ status: 'ok' });
     }
@@ -194,7 +195,6 @@ function parseError(error) {
     } else if (error.message.includes('PERMISSION_DENIED')) {
         errorType = 'permission_error';
         statusCode = 403;
-        errorMessage = errorMessage;
     }
 
     return { errorType, statusCode, errorMessage };
@@ -204,7 +204,6 @@ function parseError(error) {
 app.use((req, res, next) => {
     const start = Date.now();
 
-    // Log response on finish
     res.on('finish', () => {
         const duration = Date.now() - start;
         const status = res.statusCode;
@@ -239,13 +238,13 @@ app.post('/', (req, res) => {
 });
 
 /**
- * Test endpoint - Clear thinking signature cache
+ * Test endpoint - Clear all signature caches (in-memory + persisted store)
  * Used for testing cold cache scenarios in cross-model tests
  */
 app.post('/test/clear-signature-cache', (req, res) => {
-    clearThinkingSignatureCache();
-    logger.debug('[Test] Cleared thinking signature cache');
-    res.json({ success: true, message: 'Thinking signature cache cleared' });
+    clearAllSignatureCaches();
+    logger.debug('[Test] Cleared all signature caches and removed persisted store');
+    res.json({ success: true, message: 'All signature caches cleared' });
 });
 
 /**
@@ -257,14 +256,12 @@ app.get('/health', async (req, res) => {
         await ensureInitialized();
         const start = Date.now();
 
-        // Get high-level status first
         const status = accountManager.getStatus();
         const allAccounts = accountManager.getAllAccounts();
 
         // Fetch quotas for each account in parallel to get detailed model info
         const accountDetails = await Promise.allSettled(
             allAccounts.map(async (account) => {
-                // Check model-specific rate limits
                 const activeModelLimits = Object.entries(account.modelRateLimits || {})
                     .filter(([_, limit]) => limit.isRateLimited && limit.resetTime > Date.now());
                 const isRateLimited = activeModelLimits.length > 0;
@@ -323,7 +320,6 @@ app.get('/health', async (req, res) => {
             })
         );
 
-        // Process results
         const detailedAccounts = accountDetails.map((result, index) => {
             if (result.status === 'fulfilled') {
                 return result.value;
@@ -374,7 +370,6 @@ app.get('/account-limits', async (req, res) => {
         const format = req.query.format || 'json';
         const includeHistory = req.query.includeHistory === 'true';
 
-        // Fetch quotas for each account in parallel
         const results = await Promise.allSettled(
             allAccounts.map(async (account) => {
                 // Skip invalid accounts
@@ -390,13 +385,11 @@ app.get('/account-limits', async (req, res) => {
                 try {
                     const token = await accountManager.getTokenForAccount(account);
 
-                    // Fetch subscription tier first to get project ID
                     const subscription = await getSubscriptionTier(token);
 
                     // Then fetch quotas with project ID for accurate quota info
                     const quotas = await getModelQuotas(token, subscription.projectId);
 
-                    // Update account object with fresh data
                     account.subscription = {
                         tier: subscription.tier,
                         projectId: subscription.projectId,
@@ -441,7 +434,6 @@ app.get('/account-limits', async (req, res) => {
             })
         );
 
-        // Process results
         const accountLimits = results.map((result, index) => {
             if (result.status === 'fulfilled') {
                 return result.value;
@@ -474,12 +466,10 @@ app.get('/account-limits', async (req, res) => {
         if (format === 'table') {
             res.setHeader('Content-Type', 'text/plain; charset=utf-8');
 
-            // Build table
             const lines = [];
             const timestamp = new Date().toLocaleString();
             lines.push(`Account Limits (${timestamp})`);
 
-            // Get account status info
             const status = accountManager.getStatus();
             lines.push(`Accounts: ${status.total} total, ${status.available} available, ${status.rateLimited} rate-limited, ${status.invalid} invalid`);
             lines.push('');
@@ -498,7 +488,6 @@ app.get('/account-limits', async (req, res) => {
                 const shortEmail = acc.email.split('@')[0].slice(0, 22);
                 const lastUsed = acc.lastUsed ? new Date(acc.lastUsed).toLocaleString() : 'never';
 
-                // Get status and error from accountLimits
                 const accLimit = accountLimits.find(a => a.email === acc.email);
                 let accStatus;
                 if (acc.isInvalid) {
@@ -520,7 +509,6 @@ app.get('/account-limits', async (req, res) => {
                     }
                 }
 
-                // Get reset time from quota API
                 const claudeModel = sortedModels.find(m => m.includes('claude'));
                 const quota = claudeModel && accLimit?.models?.[claudeModel];
                 const resetTime = quota?.resetTime
@@ -586,13 +574,11 @@ app.get('/account-limits', async (req, res) => {
             return res.send(lines.join('\n'));
         }
 
-        // Get account metadata from AccountManager
         const accountStatus = accountManager.getStatus();
         const accountMetadataMap = new Map(
             accountStatus.accounts.map(a => [a.email, a])
         );
 
-        // Build response data
         const responseData = {
             timestamp: new Date().toLocaleString(),
             totalAccounts: allAccounts.length,
@@ -787,6 +773,7 @@ app.post('/v1/chat/completions', async (req, res) => {
             const created = Math.floor(Date.now() / 1000);
             const generator = sendGrokMessageStream(request, { signal: abortController.signal });
             const firstResult = await generator.next();
+            usageStats.track(requestedModel);
 
             res.status(200);
             res.setHeader('Content-Type', 'text/event-stream');
@@ -808,6 +795,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         }
 
         const response = await sendGrokMessage(request, { signal: abortController.signal });
+        usageStats.track(response?.model || requestedModel);
         return res.json(anthropicToOpenAIResponse(response, requestedModel));
     } catch (error) {
         if (req.aborted || res.destroyed || res.writableEnded || error.name === 'AbortError') return;
@@ -838,7 +826,6 @@ app.post('/v1/messages/count_tokens', (req, res) => {
 /**
  * Main messages endpoint - Anthropic Messages API compatible
  */
-
 
 /**
  * Anthropic-compatible Messages API
@@ -877,6 +864,10 @@ app.post('/v1/messages', async (req, res) => {
             const targetModel = modelMapping[requestedModel].mapping;
             logger.info(`[Server] Mapping model ${requestedModel} -> ${targetModel}`);
             requestedModel = targetModel;
+        } else if (BUILTIN_MODEL_MAPPINGS[requestedModel]) {
+            const targetModel = BUILTIN_MODEL_MAPPINGS[requestedModel];
+            logger.info(`[Server] Built-in mapping model ${requestedModel} -> ${targetModel}`);
+            requestedModel = targetModel;
         }
 
         const modelId = requestedModel;
@@ -907,7 +898,6 @@ app.post('/v1/messages', async (req, res) => {
             accountManager.resetAllRateLimits();
         }
 
-        // Validate required fields
         if (!messages || !Array.isArray(messages)) {
             return res.status(400).json({
                 type: 'error',
@@ -923,7 +913,6 @@ app.post('/v1/messages', async (req, res) => {
             return res.json({});
         }
 
-        // Build the request object
         const request = {
             model: modelId,
             messages,
@@ -960,6 +949,7 @@ app.post('/v1/messages', async (req, res) => {
                 if (stream) {
                     const generator = sendGrokMessageStream(request, { signal: abortController.signal });
                     const firstResult = await generator.next();
+                    usageStats.track(modelId);
                     res.status(200);
                     res.setHeader('Content-Type', 'text/event-stream');
                     res.setHeader('Cache-Control', 'no-cache');
@@ -979,6 +969,7 @@ app.post('/v1/messages', async (req, res) => {
                 }
 
                 const response = await sendGrokMessage(request, { signal: abortController.signal });
+                usageStats.track(response?.model || modelId);
                 res.json(response);
                 return;
             } finally {
@@ -1004,7 +995,6 @@ app.post('/v1/messages', async (req, res) => {
             // to ensure we don't send a 200 OK if the upstream fails immediately (e.g. 429/503).
 
             try {
-                // Initialize the generator
                 const generator = sendMessageStream(request, accountManager, FALLBACK_ENABLED);
                 
                 // BUFFERING STRATEGY:
@@ -1013,6 +1003,7 @@ app.post('/v1/messages', async (req, res) => {
                 const firstResult = await generator.next();
 
                 // If we get here, the stream started successfully.
+                usageStats.track(modelId);
                 res.status(200);
                 res.setHeader('Content-Type', 'text/event-stream');
                 res.setHeader('Cache-Control', 'no-cache');
@@ -1062,8 +1053,8 @@ app.post('/v1/messages', async (req, res) => {
             }
 
         } else {
-            // Handle non-streaming response
             const response = await sendMessage(request, accountManager, FALLBACK_ENABLED);
+            usageStats.track(response?.model || modelId);
             res.json(response);
         }
 
@@ -1085,6 +1076,7 @@ app.post('/v1/messages', async (req, res) => {
                 await forceRefresh();
                 errorMessage = 'Token was expired and has been refreshed. Please retry your request.';
             } catch (refreshError) {
+                logger.warn(`[API] Token refresh failed: ${refreshError.message}`);
                 errorMessage = 'Could not refresh token. Make sure Antigravity is running.';
             }
         }
@@ -1244,8 +1236,7 @@ app.post('/api/grok/accounts/:alias/toggle', async (req, res) => {
  */
 usageStats.setupRoutes(app);
 
-app.use('*', (req, res) => {
-    // Log 404s (use originalUrl since wildcard strips req.path)
+app.use((req, res) => {
     if (logger.isDebugEnabled) {
         logger.debug(`[API] 404 Not Found: ${req.method} ${req.originalUrl}`);
     }

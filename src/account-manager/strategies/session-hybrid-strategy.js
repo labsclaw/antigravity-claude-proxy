@@ -237,8 +237,6 @@ export class SessionHybridStrategy extends BaseStrategy {
             ? configuredThreshold
             : this.#quotaTracker.getCriticalThreshold();
         if (threshold === 0) return false;
-        // Stale quota must not permanently exclude accounts (matches QuotaTracker.isQuotaCritical)
-        if (!this.#quotaTracker.isQuotaFresh(account)) return false;
         const lastKnownFraction = this.#quotaTracker.getQuotaFraction(account, modelId);
         return lastKnownFraction !== null && lastKnownFraction <= threshold;
     }
