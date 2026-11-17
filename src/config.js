@@ -45,6 +45,7 @@ const DEFAULT_CONFIG = {
     globalQuotaThreshold: 0, // 0 = disabled, 0.01-0.99 = minimum quota fraction before switching accounts
     requestThrottlingEnabled: false, // Opt-in: enable delay before Google API requests
     requestDelayMs: 200, // Delay in ms when throttling enabled (100-5000ms)
+    healthRequestTimeoutMs: 5000, // Bound live upstream calls made by the health endpoint
     // Rate limit handling (matches opencode-antigravity-auth)
     rateLimitDedupWindowMs: 2000,  // 2 seconds - prevents concurrent retry storms
     maxConsecutiveFailures: 3,     // Before applying extended cooldown

@@ -290,7 +290,7 @@ export const MODEL_FALLBACK_MAP = {
 // Default test models for each family (used by test suite)
 export const TEST_MODELS = {
     claude: 'claude-sonnet-4-6',
-    gemini: 'gemini-3.5-flash-low'
+    gemini: 'gemini-3.7-flash-low'
 };
 
 // Default Claude CLI presets (used by WebUI settings)
@@ -315,9 +315,9 @@ export const DEFAULT_PRESETS = [
             ANTHROPIC_BASE_URL: 'http://localhost:8080',
             ANTHROPIC_MODEL: 'gemini-3.1-pro-low',
             ANTHROPIC_DEFAULT_OPUS_MODEL: 'gemini-3.1-pro-low',
-            ANTHROPIC_DEFAULT_SONNET_MODEL: 'gemini-3.5-flash-low',
-            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini-3.5-flash-low',
-            CLAUDE_CODE_SUBAGENT_MODEL: 'gemini-3.5-flash-low',
+            ANTHROPIC_DEFAULT_SONNET_MODEL: 'gemini-3.7-flash-low',
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini-3.7-flash-low',
+            CLAUDE_CODE_SUBAGENT_MODEL: 'gemini-3.7-flash-low',
             ENABLE_EXPERIMENTAL_MCP_CLI: 'true'
         }
     }

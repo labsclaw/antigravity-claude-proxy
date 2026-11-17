@@ -399,7 +399,7 @@ export async function exchangeCode(code, verifier) {
  * @param {string} compositeRefresh - OAuth refresh token (may be composite)
  * @returns {Promise<{accessToken: string, expiresIn: number}>} New access token
  */
-export async function refreshAccessToken(compositeRefresh) {
+export async function refreshAccessToken(compositeRefresh, requestOptions = {}) {
     // Parse the composite refresh token to extract the actual OAuth token
     const parts = parseRefreshParts(compositeRefresh);
 
@@ -413,7 +413,8 @@ export async function refreshAccessToken(compositeRefresh) {
             client_secret: OAUTH_CONFIG.clientSecret,
             refresh_token: parts.refreshToken,  // Use the actual OAuth token
             grant_type: 'refresh_token'
-        })
+        }),
+        signal: requestOptions.signal
     });
 
     if (!response.ok) {

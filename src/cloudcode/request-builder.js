@@ -56,6 +56,21 @@ function scrubClientIdentity(text) {
     return out;
 }
 
+// Backport of upstream 3.1.1 (issues #408/#410). Preserve caller rules in
+// the conversation envelope: Cloud Code can return an opaque 429 for agent
+// prompts placed in systemInstruction even when account quota remains.
+function prependCallerSystemPrompt(googleRequest, systemText) {
+    if (!systemText) return;
+    const part = { text: `<system-instructions>\n${systemText}\n</system-instructions>` };
+    const first = googleRequest.contents?.[0];
+    const firstIsFunctionResponse = Boolean(first?.parts?.[0]?.functionResponse);
+    if (first && first.role === 'user' && Array.isArray(first.parts) && !firstIsFunctionResponse) {
+        first.parts.unshift(part);
+    } else {
+        googleRequest.contents = [{ role: 'user', parts: [part] }, ...(googleRequest.contents || [])];
+    }
+}
+
 
 /**
  * Build the wrapped request body for Cloud Code API
@@ -80,14 +95,13 @@ export function buildCloudCodeRequest(anthropicRequest, projectId, accountEmail,
         { text: `Please ignore the following [ignore]${ANTIGRAVITY_SYSTEM_INSTRUCTION}[/ignore]` }
     ];
 
-    // Append any existing system instructions from the request
-    if (googleRequest.systemInstruction && googleRequest.systemInstruction.parts) {
-        for (const part of googleRequest.systemInstruction.parts) {
-            if (part.text) {
-                systemParts.push({ text: scrubClientIdentity(part.text) });
-            }
-        }
-    }
+    // Match upstream's current wire format without dropping caller rules or
+    // replacing this fork's session-affinity and Grok integration.
+    const callerSystemText = (googleRequest.systemInstruction?.parts || [])
+        .filter((part) => part.text)
+        .map((part) => scrubClientIdentity(part.text))
+        .join('\n\n');
+    prependCallerSystemPrompt(googleRequest, callerSystemText);
 
     const payload = {
         project: projectId,

@@ -64,7 +64,7 @@ async function fetchAndSaveSubscription(token, account, onSave) {
  * @returns {Promise<string>} OAuth access token
  * @throws {Error} If token refresh fails
  */
-export async function getTokenForAccount(account, tokenCache, onInvalid, onSave) {
+export async function getTokenForAccount(account, tokenCache, onInvalid, onSave, requestOptions = {}) {
     // Check cache first
     const cached = tokenCache.get(account.email);
     if (cached && (Date.now() - cached.extractedAt) < TOKEN_REFRESH_INTERVAL_MS) {
@@ -77,7 +77,7 @@ export async function getTokenForAccount(account, tokenCache, onInvalid, onSave)
     if (account.source === 'oauth' && account.refreshToken) {
         // OAuth account - use refresh token to get new access token
         try {
-            const tokens = await refreshAccessToken(account.refreshToken);
+            const tokens = await refreshAccessToken(account.refreshToken, requestOptions);
             token = tokens.accessToken;
             // Clear invalid flag on success
             if (account.isInvalid) {

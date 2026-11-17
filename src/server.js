@@ -57,8 +57,8 @@ for (let i = 0; i < args.length; i++) {
 }
 
 const app = express();
-const GROK_MODELS = ['grok-4.6'];
-const GROK_MODEL_DEFAULT = 'grok-4.6';
+const GROK_MODELS = ['grok-4.7', 'grok-4.6', 'grok-4'];
+const GROK_MODEL_DEFAULT = 'grok-4.7';
 
 // Disable x-powered-by header for security
 app.disable('x-powered-by');
@@ -291,10 +291,11 @@ app.get('/health', async (req, res) => {
                     };
                 }
 
+                const healthSignal = AbortSignal.timeout(config.healthRequestTimeoutMs);
                 try {
-                    const token = await accountManager.getTokenForAccount(account);
+                    const token = await accountManager.getTokenForAccount(account, { signal: healthSignal });
                     const projectId = account.subscription?.projectId || null;
-                    const quotas = await getModelQuotas(token, projectId);
+                    const quotas = await getModelQuotas(token, projectId, { signal: healthSignal });
 
                     // Format quotas for readability
                     const formattedQuotas = {};

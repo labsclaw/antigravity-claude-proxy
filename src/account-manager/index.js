@@ -394,12 +394,13 @@ export class AccountManager {
      * @returns {Promise<string>} OAuth access token
      * @throws {Error} If token refresh fails
      */
-    async getTokenForAccount(account) {
+    async getTokenForAccount(account, requestOptions = {}) {
         return fetchToken(
             account,
             this.#tokenCache,
             (email, reason) => this.markInvalid(email, reason),
-            () => this.saveToDisk()
+            () => this.saveToDisk(),
+            requestOptions
         );
     }
 

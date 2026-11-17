@@ -304,7 +304,7 @@ export function createGrokBridge({
     }
 
     async function sendGrokMessage(anthropicRequest, options = {}) {
-        const model = anthropicRequest.model || 'grok-4.5';
+        const model = anthropicRequest.model || 'grok-4.7';
         const prompt = buildGrokPrompt(anthropicRequest);
         await accountManager.initialize();
         const maxAttempts = Math.max(1, accountManager.getAccounts().length || 1);
@@ -331,7 +331,7 @@ export function createGrokBridge({
     }
 
     async function* sendGrokMessageStream(anthropicRequest, options = {}) {
-        const model = anthropicRequest.model || 'grok-4.5';
+        const model = anthropicRequest.model || 'grok-4.7';
         const response = await sendGrokMessage(anthropicRequest, options);
         const text = response.content[0]?.text || '';
         yield {

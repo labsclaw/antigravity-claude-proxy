@@ -12,7 +12,7 @@ const GROK_RATE_LIMIT_COOLDOWN = 120_000;
 const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;
 
 export function hasGrokAuthFile(baseDir, existsSyncImpl = existsSync) {
-    return existsSyncImpl(join(baseDir, '.grok', 'auth.json'));
+    return existsSyncImpl(join(baseDir, '.grok', 'auth.json')) || existsSyncImpl(join(baseDir, 'auth.json'));
 }
 
 export class GrokAccountManager {

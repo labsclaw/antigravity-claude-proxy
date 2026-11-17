@@ -74,7 +74,7 @@ export async function listModels(token) {
  * @param {string} [projectId] - Optional project ID for accurate quota info
  * @returns {Promise<Object>} Raw response from fetchAvailableModels API
  */
-export async function fetchAvailableModels(token, projectId = null) {
+export async function fetchAvailableModels(token, projectId = null, requestOptions = {}) {
     const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -90,7 +90,8 @@ export async function fetchAvailableModels(token, projectId = null) {
             const response = await throttledFetch(url, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                signal: requestOptions.signal
             });
 
             if (!response.ok) {
@@ -123,8 +124,8 @@ export async function fetchAvailableModels(token, projectId = null) {
  * @param {string} [projectId] - Optional project ID for accurate quota info
  * @returns {Promise<Object>} Map of modelId -> { remainingFraction, resetTime }
  */
-export async function getModelQuotas(token, projectId = null) {
-    const data = await fetchAvailableModels(token, projectId);
+export async function getModelQuotas(token, projectId = null, requestOptions = {}) {
+    const data = await fetchAvailableModels(token, projectId, requestOptions);
     if (!data || !data.models) return {};
 
     const quotas = {};
