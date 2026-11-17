@@ -46,16 +46,19 @@ async function loadBridge() {
     return import('../src/cloudcode/grok-bridge.js');
 }
 
-test('Grok authentication requires the CLI nested auth layout', async () => {
+test('Grok authentication supports nested and root CLI layouts on the host platform', async () => {
     const { hasGrokAuthFile } = await import('../src/grok/grok-account-manager.js');
-    const checked = [];
-    const exists = candidate => {
-        checked.push(candidate);
-        return candidate.endsWith('auth.json');
-    };
-
-    assert.equal(hasGrokAuthFile('C:\\account-home', exists), true);
-    assert.deepEqual(checked, ['C:\\account-home\\.grok\\auth.json']);
+    const { join } = require('node:path');
+    const base = 'account-home';
+    for (const authPath of [join(base, '.grok', 'auth.json'), join(base, 'auth.json')]) {
+        const checked = [];
+        assert.equal(hasGrokAuthFile(base, candidate => {
+            checked.push(candidate);
+            return candidate === authPath;
+        }), true);
+        assert.ok(checked.includes(authPath));
+    }
+    assert.equal(hasGrokAuthFile(base, () => false), false);
 });
 
 test('health check hides the Windows subprocess and does not use a shell for grok.exe', async () => {

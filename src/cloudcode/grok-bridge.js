@@ -5,7 +5,7 @@ import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from 'child_process';
 import crypto from 'crypto';
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { homedir, tmpdir } from 'os';
-import { delimiter, join } from 'path';
+import { delimiter, join, win32 } from 'path';
 import { GrokAccountManager } from '../grok/grok-account-manager.js';
 import { logger } from '../utils/logger.js';
 
@@ -104,7 +104,7 @@ export function terminateGrokProcess(child, {
     systemRoot = process.env.SystemRoot || 'C:\\Windows'
 } = {}) {
     if (platform === 'win32' && Number.isInteger(child.pid)) {
-        const taskkill = join(systemRoot, 'System32', 'taskkill.exe');
+        const taskkill = win32.join(systemRoot, 'System32', 'taskkill.exe');
         const result = spawnSyncImpl(taskkill, ['/pid', String(child.pid), '/t', '/f'], {
             stdio: 'ignore',
             shell: false,
