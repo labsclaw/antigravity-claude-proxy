@@ -106,7 +106,7 @@
                     x-text="connectionStatus === 'connected' ? $store.global.t('online') : (connectionStatus === 'disconnected' ? $store.global.t('offline') : $store.global.t('connecting'))"></span>
             </div>
 
-            
+
             <!-- Refresh Button -->
             <button type="button" class="btn btn-ghost btn-sm btn-square text-gray-500 hover:text-white hover:bg-space-800"
                 @click="fetchData" :disabled="loading" :title="$store.global.t('refreshData')" aria-label="Refresh data">
@@ -123,7 +123,7 @@
     <div class="flex h-[calc(100vh-56px)] relative">
 
         <!-- Mobile Sidebar Overlay -->
-        <div x-show="sidebarOpen" 
+        <div x-show="sidebarOpen"
              x-transition:enter="transition-opacity ease-linear duration-300"
              x-transition:enter-start="opacity-0"
              x-transition:enter-end="opacity-100"
@@ -144,7 +144,7 @@
                  'lg:w-64': sidebarOpen,
                  'sidebar-collapsed': !sidebarOpen
              }">
-             
+
             <!-- Inner Sidebar Content (Fixed Width to prevent squashing) -->
             <div class="w-64 flex flex-col h-full pt-5 pb-4 flex-shrink-0">
                 <!-- Mobile Menu Header -->
@@ -160,7 +160,7 @@
                 <!-- Desktop Header (Main) -->
                 <div class="nav-section-label hidden lg:block"
                     x-text="$store.global.t('main')">Main</div>
-                
+
                 <nav class="flex flex-col gap-0.5">
                     <button
                         class="nav-item flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-400 hover:text-white hover:bg-space-850"
@@ -295,7 +295,7 @@
 
                 <div class="text-center mt-2">
                     <p class="text-xs text-gray-500 mb-2" x-text="$store.global.t('or')">or</p>
-                    
+
                     <!-- Manual Mode (collapsible) -->
                     <details class="group mb-2" @toggle="initManualAuth($event)">
                         <summary class="text-xs text-gray-400 hover:text-white cursor-pointer transition-colors inline-flex items-center gap-1">
@@ -308,7 +308,7 @@
                             <template x-if="authUrl">
                                 <div>
                                     <div class="flex items-center gap-2 mb-2">
-                                        <input type="text" readonly :value="authUrl" 
+                                        <input type="text" readonly :value="authUrl"
                                                class="input input-xs input-bordered flex-1 bg-space-850 border-space-border text-gray-300 font-mono">
                                         <button class="btn btn-xs btn-ghost text-gray-400 hover:text-white" @click="copyLink" aria-label="Copy link" :title="$store.global.t('linkCopied')">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -317,11 +317,11 @@
                                         </button>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <input type="text" x-model="callbackInput" 
+                                        <input type="text" x-model="callbackInput"
                                                :placeholder="$store.global.t('pasteCallbackPlaceholder')"
                                                class="input input-xs input-bordered flex-1 bg-space-850 border-space-border text-gray-300 font-mono">
-                                        <button class="btn btn-xs btn-success" 
-                                                @click="completeManualAuth" 
+                                        <button class="btn btn-xs btn-success"
+                                                @click="completeManualAuth"
                                                 :disabled="!callbackInput || submitting"
                                                 :class="{ 'loading': submitting }">
                                             <span x-text="$store.global.t('completeAuth')">OK</span>
